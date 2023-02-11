@@ -73,6 +73,64 @@ void Core::InitD3D() {
 		this->dev->CreateRenderTargetView(this->backBuffers[i].Get(), nullptr, rtvHandle);
 		rtvHandle.Offset(1, this->nRTVHeapIncrementSize);
 	}
+
+	this->InitPipeline();
+	//this->dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, this->allocator.Get(), this->plState.Get(), IID_PPV_ARGS(this->list.Get()));
+}
+
+/*
+	This method initializes our pipeline state
+		TODO: Create many pipelines for each GameObject (I'll create GameObject class soon)
+*/
+void Core::InitPipeline() {
+	D3D12_ROOT_SIGNATURE_DESC rootSigDesc = { };
+	rootSigDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	rootSigDesc.NumParameters = 0;
+	rootSigDesc.pParameters = nullptr;
+	rootSigDesc.NumStaticSamplers = 0;
+	rootSigDesc.pStaticSamplers = nullptr;
+
+	ComPtr<ID3DBlob> rootSigBlob, rootSigErr;
+	ThrowIfFailed(D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, rootSigBlob.GetAddressOf(), rootSigErr.GetAddressOf()));
+
+	if (rootSigErr) {
+		MessageBox(this->hwnd, (char*)rootSigErr->GetBufferPointer(), "Error", MB_OK | MB_ICONERROR);
+		return;
+	}
+
+	ThrowIfFailed(this->dev->CreateRootSignature(0, rootSigBlob->GetBufferPointer(), rootSigBlob->GetBufferSize(), IID_PPV_ARGS(this->rootSig.GetAddressOf())));
+
+	Shader* shader = new Shader(L"shader.fx", "VertexMain", "PixelMain");
+	ComPtr<ID3DBlob> VS, PS;
+	shader->GetBlob(VS, PS);
+
+	D3D12_INPUT_ELEMENT_DESC elements[] = {
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, NULL},
+		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, NULL},
+	};
+
+	UINT nNumElements = _countof(elements);
+
+	D3D12_INPUT_LAYOUT_DESC layout = { };
+	layout.NumElements = nNumElements;
+	layout.pInputElementDescs = elements;
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC plDesc = { };
+	plDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	plDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	plDesc.RTVFormats[0] = DXGI_FORMAT_B8G8R8A8_UNORM;
+	plDesc.NumRenderTargets = 1;
+	plDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	plDesc.pRootSignature = this->rootSig.Get();
+	plDesc.VS = CD3DX12_SHADER_BYTECODE(VS.Get());
+	plDesc.PS = CD3DX12_SHADER_BYTECODE(PS.Get());
+	plDesc.DepthStencilState.DepthEnable = FALSE;
+	plDesc.DepthStencilState.StencilEnable = FALSE;
+	plDesc.InputLayout = layout;
+	plDesc.SampleDesc.Count = 1;
+	plDesc.SampleMask = UINT32_MAX;
+	
+	ThrowIfFailed(this->dev->CreateGraphicsPipelineState(&plDesc, IID_PPV_ARGS(this->plState.GetAddressOf())));
 }
 
 /*

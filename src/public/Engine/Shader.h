@@ -17,7 +17,7 @@ private:
 
 	ComPtr<ID3DBlob> VS, PS;
 public:
-	Shader(WCHAR* fileName, const char* vertexShaderMethod, const char* pixelShaderMethod);
+	Shader(const wchar_t* fileName, const char* vertexShaderMethod, const char* pixelShaderMethod);
 
 	void GetBlob(ComPtr<ID3DBlob>& VS, ComPtr<ID3DBlob>& PS);
 };

@@ -3,7 +3,7 @@
 #
 
 # Agregue un origen al ejecutable de este proyecto.
-add_executable (ZeusEngine  "main.cpp" "public/Engine/Core.h" "private/Engine/Core.cpp" "public/Util/Util.h" "public/Engine/Shader.h" "private/Engine/Shader.cpp")
+add_executable (ZeusEngine  "main.cpp" "public/Engine/Core.h" "private/Engine/Core.cpp" "public/Util/Util.h" "public/Engine/Shader.h" "private/Engine/Shader.cpp" "public/Engine/Vertex.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ZeusEngine PROPERTY CXX_STANDARD 20)
