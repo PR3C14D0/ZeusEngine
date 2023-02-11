@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include <wrl.h>
 #include <directx/d3d12.h>
+#include <directx/d3dx12.h>
 #include <dxgi1_4.h>
 #include "Util/Util.h"
 
@@ -28,6 +29,9 @@ private:
 	ComPtr<ID3D12CommandQueue> queue;
 
 	UINT nNumBackBuffers;
+	ComPtr<ID3D12DescriptorHeap> rtvHeap;
+	std::vector<ComPtr<ID3D12Resource>> backBuffers;
+	UINT nRTVHeapIncrementSize;
 
 	bool GetMostCapableAdapter(ComPtr<IDXGIAdapter>& adapter, ComPtr<IDXGIFactory2>& factory);
 	D3D_FEATURE_LEVEL GetMaxFeatureLevel(ComPtr<IDXGIAdapter>& adapter);

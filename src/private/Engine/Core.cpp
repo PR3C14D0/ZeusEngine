@@ -48,13 +48,31 @@ void Core::InitD3D() {
 		scDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 		scDesc.SampleDesc.Count = 1;
 		scDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	
+
 		this->factory->CreateSwapChainForHwnd(this->queue.Get(), this->hwnd, &scDesc, nullptr, nullptr, sc.GetAddressOf());
 
 		sc.As(&this->sc);
 	}
 
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = { };
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.NumDescriptors = this->nNumBackBuffers;
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
+	ThrowIfFailed(this->dev->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(this->rtvHeap.GetAddressOf())));
+
+	this->nRTVHeapIncrementSize = this->dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart());
+	
+	for (int i = 0; i < this->nNumBackBuffers; i++) {
+		ComPtr<ID3D12Resource> backBuffer;
+		ThrowIfFailed(this->sc->GetBuffer(i, IID_PPV_ARGS(backBuffer.GetAddressOf())));
+		this->backBuffers.push_back(backBuffer);
+
+		this->dev->CreateRenderTargetView(this->backBuffers[i].Get(), nullptr, rtvHandle);
+		rtvHandle.Offset(1, this->nRTVHeapIncrementSize);
+	}
 }
 
 /*
