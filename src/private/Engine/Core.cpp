@@ -58,6 +58,21 @@ void Core::InitD3D() {
 }
 
 /*
+	This method sets hwnd parameter to our Core hwnd.
+		Note: there must be an HWND.
+*/
+void Core::GetHWND(HWND& hwnd) {
+	hwnd = this->hwnd;
+}
+
+/*
+	This method sets our Core window
+*/
+void Core::SetHWND(HWND& hwnd) {
+	this->hwnd = hwnd;
+}
+
+/*
 	This method will get the most capable device with the minimum feature level
 		Note: If there is no capable device, will show an error message.
 */
@@ -119,6 +134,7 @@ D3D_FEATURE_LEVEL Core::GetMaxFeatureLevel(ComPtr<IDXGIAdapter>& adapter) {
 */
 void Core::Init() {
 	if (bInitialized) return;
+	if (!this->hwnd) return;
 
 	this->InitD3D();
 

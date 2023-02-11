@@ -5,7 +5,7 @@
 #include <wrl.h>
 #include <directx/d3d12.h>
 #include <dxgi1_4.h>
-#include "Engine/Util.h"
+#include "Util/Util.h"
 
 using namespace Microsoft::WRL;
 
@@ -34,6 +34,7 @@ private:
 public:
 	Core();
 	static Core* GetInstance();
-
+	void SetHWND(HWND& hwnd);
+	void GetHWND(HWND& hwnd);
 	void Init();
 };
