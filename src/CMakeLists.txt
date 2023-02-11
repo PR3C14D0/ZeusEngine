@@ -11,5 +11,8 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
 endif()
 
 set(SOURCE_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/public")
+set(DX_LIB "d3d12.lib;dxgi.lib;d3dcompiler.lib")
+set(GLOBAL_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 
+target_link_libraries(ZeusEngine "${DX_LIB}")
 include_directories("${SOURCE_INCLUDES}")
