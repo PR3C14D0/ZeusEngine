@@ -75,7 +75,54 @@ void Core::InitD3D() {
 	}
 
 	this->InitPipeline();
-	//this->dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, this->allocator.Get(), this->plState.Get(), IID_PPV_ARGS(this->list.Get()));
+	ThrowIfFailed(this->dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, this->allocator.Get(), this->plState.Get(), IID_PPV_ARGS(this->list.GetAddressOf())));
+	
+	ThrowIfFailed(this->list->Close());
+
+	this->UploadBuffer();
+}
+
+/*
+*	TODO: Delete this.
+*/
+void Core::UploadBuffer() {
+	vertex vertices[] = {
+		{.5f, 0.f, 0.f, {1.f, 0.f, 0.f, 1.f}},
+		{-.5f, .5f, 0.f, {0.f, 1.f, 0.f, 1.f}},
+		{-.5f, -.5f, 0.f, {0.f, 0.f, 1.f, 1.f}},
+	};
+
+	UINT verticesSize = sizeof(vertices);
+
+	D3D12_RESOURCE_DESC buffDesc = CD3DX12_RESOURCE_DESC::Buffer(verticesSize);
+	D3D12_HEAP_PROPERTIES buffProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+
+	ThrowIfFailed(this->dev->CreateCommittedResource(
+		&buffProps,
+		D3D12_HEAP_FLAG_NONE,
+		&buffDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(this->vertexBuffer.GetAddressOf())
+	));
+
+	PUINT mappedBuffer;
+	this->vertexBuffer->Map(NULL, nullptr, (void**)&mappedBuffer);
+	memcpy(mappedBuffer, vertices, verticesSize);
+	this->vertexBuffer->Unmap(0, nullptr);
+
+	return;
+}
+
+/*
+	This method populates our command list.
+	I'll modify this method drastically soon.
+*/
+void Core::PopulateCommandList() {
+	ThrowIfFailed(this->allocator->Reset());
+	ThrowIfFailed(this->list->Reset(this->allocator.Get(), this->plState.Get()));
+
+	
 }
 
 /*
@@ -211,6 +258,11 @@ D3D_FEATURE_LEVEL Core::GetMaxFeatureLevel(ComPtr<IDXGIAdapter>& adapter) {
 void Core::Init() {
 	if (bInitialized) return;
 	if (!this->hwnd) return;
+
+	RECT rect;
+	GetWindowRect(this->hwnd, &rect);
+	this->width = rect.right - rect.left;
+	this->height = rect.bottom - rect.top;
 
 	this->InitD3D();
 
