@@ -47,6 +47,7 @@ void Core::InitD3D() {
 		scDesc.BufferCount = this->nNumBackBuffers;
 		scDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 		scDesc.SampleDesc.Count = 1;
+		scDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 		scDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
 		this->factory->CreateSwapChainForHwnd(this->queue.Get(), this->hwnd, &scDesc, nullptr, nullptr, sc.GetAddressOf());
@@ -74,12 +75,24 @@ void Core::InitD3D() {
 		rtvHandle.Offset(1, this->nRTVHeapIncrementSize);
 	}
 
+	this->UploadBuffer();
 	this->InitPipeline();
 	ThrowIfFailed(this->dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, this->allocator.Get(), this->plState.Get(), IID_PPV_ARGS(this->list.GetAddressOf())));
 	
 	ThrowIfFailed(this->list->Close());
 
-	this->UploadBuffer();
+	ZeroMemory(&this->viewport, sizeof(D3D12_VIEWPORT));
+	this->viewport.Height = this->height;
+	this->viewport.Width = this->width;
+	this->viewport.TopLeftX = 0;
+	this->viewport.TopLeftY = 0;
+
+	this->scissorRect = CD3DX12_RECT(0, 0, (LONG)this->width, (LONG)this->height);
+
+	this->nCurrentFence = 1;
+	ThrowIfFailed(this->dev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(this->fence.GetAddressOf())));
+	this->fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	this->WaitFrame();
 }
 
 /*
@@ -87,9 +100,9 @@ void Core::InitD3D() {
 */
 void Core::UploadBuffer() {
 	vertex vertices[] = {
-		{.5f, 0.f, 0.f, {1.f, 0.f, 0.f, 1.f}},
-		{-.5f, .5f, 0.f, {0.f, 1.f, 0.f, 1.f}},
-		{-.5f, -.5f, 0.f, {0.f, 0.f, 1.f, 1.f}},
+		{{.0f, .5f, 0.f}, {1.f, 0.f, 0.f, 1.f}},
+		{{.5f, -.5f, 0.f}, {0.f, 1.f, 0.f, 1.f}},
+		{{-.5f, -.5f, 0.f}, {0.f, 0.f, 1.f, 1.f}},
 	};
 
 	UINT verticesSize = sizeof(vertices);
@@ -111,6 +124,10 @@ void Core::UploadBuffer() {
 	memcpy(mappedBuffer, vertices, verticesSize);
 	this->vertexBuffer->Unmap(0, nullptr);
 
+	this->vertexBuffView.BufferLocation = this->vertexBuffer->GetGPUVirtualAddress();
+	this->vertexBuffView.SizeInBytes = verticesSize;
+	this->vertexBuffView.StrideInBytes = sizeof(vertex);
+
 	return;
 }
 
@@ -122,7 +139,53 @@ void Core::PopulateCommandList() {
 	ThrowIfFailed(this->allocator->Reset());
 	ThrowIfFailed(this->list->Reset(this->allocator.Get(), this->plState.Get()));
 
-	
+	D3D12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	this->list->ResourceBarrier(1, &resourceBarrier);
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->nCurrentBackBuffer, this->nRTVHeapIncrementSize);
+	this->list->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	this->list->ClearRenderTargetView(rtvHandle, RGBA{ 0.f, 0.f, 0.f, 1.f }, 0, nullptr);
+	this->list->IASetVertexBuffers(0, 1, &this->vertexBuffView);
+	this->list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	this->list->SetGraphicsRootSignature(this->rootSig.Get());
+	this->list->RSSetScissorRects(1, &this->scissorRect);
+	this->list->RSSetViewports(1, &this->viewport);
+	this->list->DrawInstanced(3, 1, 0, 0);
+
+	resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	this->list->ResourceBarrier(1, &resourceBarrier);
+
+	this->list->Close();
+
+	return;
+}
+
+/*
+	We'll wait for last frame to end drawing and presenting before draw next frame.
+*/
+void Core::WaitFrame() {
+	UINT nFence = this->nCurrentFence;
+	this->queue->Signal(this->fence.Get(), nFence);
+	this->nCurrentFence++;
+
+	if (this->fence->GetCompletedValue() < nFence) {
+		this->fence->SetEventOnCompletion(nFence, this->fenceEvent);
+		WaitForSingleObject(this->fenceEvent, INFINITE);
+	}
+
+	this->nCurrentBackBuffer = this->sc->GetCurrentBackBufferIndex();
+	return;
+}
+
+/*
+	Our render loop
+*/
+void Core::MainLoop() {
+	this->PopulateCommandList();
+	ID3D12CommandList* cmdLists[] = { this->list.Get() };
+	this->queue->ExecuteCommandLists(1, cmdLists);
+	this->sc->Present(1, 0);
+	this->WaitFrame();
 }
 
 /*

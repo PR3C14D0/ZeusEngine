@@ -1,8 +1,10 @@
 #include <Windows.h>
+#include "Engine/Core.h"
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 bool g_quit = false;
+Core* g_core = Core::GetInstance();
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
 	const char CLASS_NAME[] = "ZeusEngine";
@@ -32,12 +34,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	ShowWindow(hwnd, nShowCmd);
 
+	g_core->SetHWND(hwnd);
+	g_core->Init();
+
 	MSG msg = { };
 	while (!g_quit) {
 		while (PeekMessage(&msg, NULL, NULL, NULL, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
+		g_core->MainLoop();
 	}
 	
 	return 0;

@@ -10,7 +10,7 @@ Shader::Shader(const wchar_t* fileName, const char* vertexShaderMethod, const ch
 
 	ComPtr<ID3DBlob> VSErr, PSErr;
 	ThrowIfFailed(D3DCompileFromFile(fullShaderPath, nullptr, nullptr, vertexShaderMethod, "vs_5_1", NULL, NULL, this->VS.GetAddressOf(), VSErr.GetAddressOf()));
-	ThrowIfFailed(D3DCompileFromFile(fullShaderPath, nullptr, nullptr, pixelShaderMethod, "ps_5_1", NULL, NULL, this->VS.GetAddressOf(), PSErr.GetAddressOf()));
+	ThrowIfFailed(D3DCompileFromFile(fullShaderPath, nullptr, nullptr, pixelShaderMethod, "ps_5_1", NULL, NULL, this->PS.GetAddressOf(), PSErr.GetAddressOf()));
 
 	if (VSErr) 
 		MessageBox(this->hwnd, (char*)VSErr->GetBufferPointer(), "Error", MB_OK | MB_ICONERROR);

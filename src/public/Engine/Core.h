@@ -40,12 +40,17 @@ private:
 	ComPtr<ID3D12DescriptorHeap> rtvHeap;
 	std::vector<ComPtr<ID3D12Resource>> backBuffers;
 	UINT nRTVHeapIncrementSize;
+	UINT nCurrentBackBuffer;
 
 	ComPtr<ID3D12RootSignature> rootSig;
 
 	D3D12_VIEWPORT viewport;
 	D3D12_RECT scissorRect;
 	int width, height;
+
+	ComPtr<ID3D12Fence> fence;
+	HANDLE fenceEvent;
+	UINT nCurrentFence;
 
 	// Temporal
 	void InitPipeline();
@@ -55,10 +60,14 @@ private:
 
 	bool GetMostCapableAdapter(ComPtr<IDXGIAdapter>& adapter, ComPtr<IDXGIFactory2>& factory);
 	D3D_FEATURE_LEVEL GetMaxFeatureLevel(ComPtr<IDXGIAdapter>& adapter);
+
+	void WaitFrame();
 public:
 	Core();
 	static Core* GetInstance();
 	void SetHWND(HWND& hwnd);
 	void GetHWND(HWND& hwnd);
 	void Init();
+	
+	void MainLoop();
 };
