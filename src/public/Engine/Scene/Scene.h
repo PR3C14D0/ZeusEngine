@@ -9,4 +9,6 @@ private:
 	std::vector<GameObject*> sceneObjs;
 public:
 	Scene(std::string name);
+
+	void Render();
 };

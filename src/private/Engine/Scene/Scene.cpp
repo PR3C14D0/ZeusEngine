@@ -2,5 +2,12 @@
 
 Scene::Scene(std::string name) {
 	this->name = name;
-	this->sceneObjs.push_back(new GameObject("SampleObj"));
+	GameObject* sampleObj = new GameObject("SampleObj");
+	this->sceneObjs.push_back(sampleObj);
+}
+
+void Scene::Render() {
+	for (GameObject* obj : this->sceneObjs) {
+		obj->Render();
+	}
 }

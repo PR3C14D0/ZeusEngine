@@ -8,7 +8,7 @@
 #include <dxgi1_4.h>
 #include "Util/Util.h"
 #include "Engine/Shader.h"
-#include "Engine/Vertex.h"
+#include "Engine/Scene/SceneManager.h"
 
 using namespace Microsoft::WRL;
 
@@ -30,19 +30,12 @@ private:
 	ComPtr<ID3D12CommandAllocator> allocator;
 	ComPtr<ID3D12CommandQueue> queue;
 	ComPtr<ID3D12GraphicsCommandList> list;
-	
-	ComPtr<ID3D12PipelineState> plState;
-
-	ComPtr<ID3D12Resource> vertexBuffer;
-	D3D12_VERTEX_BUFFER_VIEW vertexBuffView;
 
 	UINT nNumBackBuffers;
 	ComPtr<ID3D12DescriptorHeap> rtvHeap;
 	std::vector<ComPtr<ID3D12Resource>> backBuffers;
 	UINT nRTVHeapIncrementSize;
 	UINT nCurrentBackBuffer;
-
-	ComPtr<ID3D12RootSignature> rootSig;
 
 	D3D12_VIEWPORT viewport;
 	D3D12_RECT scissorRect;
@@ -52,12 +45,8 @@ private:
 	HANDLE fenceEvent;
 	UINT nCurrentFence;
 
-	// Temporal
-	void InitPipeline();
-	void UploadBuffer();
-	void PopulateCommandList();
-	// End:Temporal
-
+	SceneManager* sceneMgr;
+	
 	bool GetMostCapableAdapter(ComPtr<IDXGIAdapter>& adapter, ComPtr<IDXGIFactory2>& factory);
 	D3D_FEATURE_LEVEL GetMaxFeatureLevel(ComPtr<IDXGIAdapter>& adapter);
 
