@@ -35,6 +35,8 @@ private:
 	UINT nNumBackBuffers;
 	ComPtr<ID3D12DescriptorHeap> rtvHeap;
 	std::vector<ComPtr<ID3D12Resource>> backBuffers;
+	std::vector<ComPtr<ID3D12Resource>> gbuffers;
+	UINT gbufferIndices[2];
 	UINT nRTVHeapIncrementSize;
 	UINT nCurrentBackBuffer;
 

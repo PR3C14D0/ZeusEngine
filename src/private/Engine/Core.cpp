@@ -61,7 +61,7 @@ void Core::InitD3D() {
 
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = { };
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	rtvHeapDesc.NumDescriptors = this->nNumBackBuffers;
+	rtvHeapDesc.NumDescriptors = this->nNumBackBuffers + 2; // +2 Because of Albedo and Normals
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
 	ThrowIfFailed(this->dev->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(this->rtvHeap.GetAddressOf())));
@@ -76,6 +76,42 @@ void Core::InitD3D() {
 		this->backBuffers.push_back(backBuffer);
 
 		this->dev->CreateRenderTargetView(this->backBuffers[i].Get(), nullptr, rtvHandle);
+		rtvHandle.Offset(1, this->nRTVHeapIncrementSize);
+	}
+
+	gbufferIndices[0] = this->nNumBackBuffers;
+	gbufferIndices[1] = this->nNumBackBuffers + 1;
+
+	D3D12_RESOURCE_DESC gBuffDesc = { };
+	gBuffDesc.DepthOrArraySize = 1;
+	gBuffDesc.MipLevels = 1;
+	gBuffDesc.Height = this->height;
+	gBuffDesc.Width = this->width;
+	gBuffDesc.SampleDesc.Count = 1;
+	gBuffDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	gBuffDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	gBuffDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+
+	D3D12_HEAP_PROPERTIES gBuffProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+	D3D12_RENDER_TARGET_VIEW_DESC grtvDesc = { };
+	grtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	grtvDesc.Format = gBuffDesc.Format;
+	
+	for (int i = 0; i < _countof(gbufferIndices); i++) {
+		ComPtr<ID3D12Resource> gbuffer;
+		this->dev->CreateCommittedResource(
+			&gBuffProps,
+			D3D12_HEAP_FLAG_NONE,
+			&gBuffDesc,
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			nullptr,
+			IID_PPV_ARGS(gbuffer.GetAddressOf())
+		);
+
+		this->gbuffers.push_back(gbuffer);
+		
+		this->dev->CreateRenderTargetView(this->gbuffers[i].Get(), &grtvDesc, rtvHandle);
 		rtvHandle.Offset(1, this->nRTVHeapIncrementSize);
 	}
 
@@ -120,13 +156,18 @@ void Core::InitD3D() {
 	
 	D3D12_HEAP_PROPERTIES dsvTexProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 
+	D3D12_CLEAR_VALUE dsvClear = { };
+	dsvClear.DepthStencil.Depth = 1.f;
+	dsvClear.DepthStencil.Stencil = 1.f;
+	dsvClear.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+
 	ThrowIfFailed(
 		this->dev->CreateCommittedResource(
 			&dsvTexProps,
 			D3D12_HEAP_FLAG_NONE,
 			&dsvTexDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			&dsvClear,
 			IID_PPV_ARGS(this->zBuffer.GetAddressOf())
 		)
 	);
@@ -222,7 +263,13 @@ void Core::PopulateCommandList() {
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->nCurrentBackBuffer, this->nRTVHeapIncrementSize);
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(this->dsvHeap->GetCPUDescriptorHandleForHeapStart());
 		
-	this->list->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+	std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> gbufferHandles;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE gbufferHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->gbufferIndices[0], this->nRTVHeapIncrementSize);
+	gbufferHandles.push_back(gbufferHandle);
+	gbufferHandle.Offset(1, this->nRTVHeapIncrementSize);
+	gbufferHandles.push_back(gbufferHandle);
+
+	this->list->OMSetRenderTargets(gbufferHandles.size(), gbufferHandles.data(), FALSE, &dsvHandle);
 	this->list->ClearRenderTargetView(rtvHandle, RGBA{ 0.f, 0.f, 0.f, 1.f}, 0, nullptr);
 	this->list->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.f, 0.f, 0, nullptr);
 	

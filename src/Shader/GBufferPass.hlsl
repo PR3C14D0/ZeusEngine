@@ -5,12 +5,21 @@ struct VertexOutput
     float4 normal : NORMAL0;
 };
 
+cbuffer WVP : register(b0)
+{
+    matrix Model;
+    matrix View;
+    matrix Projection;
+}
+
 VertexOutput VertexMain(float4 position : POSITION, float2 uv : TEXCOORD, float4 normal : NORMAL)
 {
     VertexOutput output;
-    output.position = position;
+    output.position = mul(position, Model);
+    output.position = mul(output.position, View);
+    output.position = mul(output.position, Projection);
     output.uv = uv;
-    output.normal = normal;
+    output.normal = normalize(mul(normal, Model));
     return output;
 }
 

@@ -155,7 +155,7 @@ void GameObject::InitPipeline() {
 	layout.NumElements = _countof(elements);
 	layout.pInputElementDescs = elements;
 
-	this->shader = new Shader(L"shader.fx", "VertexMain", "PixelMain");
+	this->shader = new Shader(L"GBufferPass.hlsl", "VertexMain", "PixelMain");
 	ComPtr<ID3DBlob> VS, PS;
 	this->shader->GetBlob(VS, PS);
 
@@ -166,7 +166,8 @@ void GameObject::InitPipeline() {
 	plDesc.VS = CD3DX12_SHADER_BYTECODE(VS.Get());
 	plDesc.PS = CD3DX12_SHADER_BYTECODE(PS.Get());
 	plDesc.RTVFormats[0] = DXGI_FORMAT_B8G8R8A8_UNORM;
-	plDesc.NumRenderTargets = 1;
+	plDesc.RTVFormats[1] = DXGI_FORMAT_B8G8R8A8_UNORM;
+	plDesc.NumRenderTargets = 2;
 	plDesc.SampleDesc.Count = 1;
 	plDesc.SampleMask = UINT32_MAX;
 	plDesc.pRootSignature = this->rootSig.Get();
@@ -175,6 +176,7 @@ void GameObject::InitPipeline() {
 	plDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 	plDesc.DepthStencilState.DepthEnable = TRUE;
 	plDesc.DepthStencilState.StencilEnable = FALSE;
+	plDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
 	ThrowIfFailed(this->core->dev->CreateGraphicsPipelineState(&plDesc, IID_PPV_ARGS(this->plState.GetAddressOf())));
 }
