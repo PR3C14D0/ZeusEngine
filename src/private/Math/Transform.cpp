@@ -12,7 +12,8 @@ void Transform::translate(Vector3 offset) {
 }
 
 void Transform::translate(float x, float y, float z) {
-	this->translate(Vector3{ x, y, z });
+	Vector3 vec{ x, y, z };
+	this->translate(vec);
 	return;
 }
 
@@ -22,6 +23,7 @@ void Transform::rotate(Vector3 rot) {
 }
 
 void Transform::rotate(float x, float y, float z) {
-	this->rotate(Vector3{ x, y, z });
+	Vector3 vec{ x, y, z };
+	this->rotate(vec);
 	return;
 }
