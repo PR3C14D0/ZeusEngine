@@ -112,6 +112,16 @@ void Core::WaitFrame() {
 }
 
 /*
+	This method gets our device and command list.
+*/
+void Core::GetDevice(ComPtr<ID3D12Device>& dev, ComPtr<ID3D12GraphicsCommandList>& list) {
+	if (!this->bInitialized) return;
+	dev = this->dev;
+	list = this->list;
+	return;
+}
+
+/*
 	Our render loop
 */
 void Core::MainLoop() {

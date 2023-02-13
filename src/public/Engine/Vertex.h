@@ -2,8 +2,10 @@
 
 typedef float POSITION[3];
 typedef float RGBA[4];
+typedef float UV[2];
 
 struct vertex {
 	POSITION pos;
-	RGBA color;
+	UV uv;
+	POSITION normal;
 };

@@ -57,6 +57,8 @@ public:
 	void SetHWND(HWND& hwnd);
 	void GetHWND(HWND& hwnd);
 	void Init();
+
+	void GetDevice(ComPtr<ID3D12Device>& dev, ComPtr<ID3D12GraphicsCommandList>& list);
 	
 	void MainLoop();
 };
