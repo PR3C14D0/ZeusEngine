@@ -9,6 +9,8 @@
 #include <assimp/postprocess.h>
 #include "Engine/Vertex.h"
 #include "Util/Util.h"
+#include "Engine/WVP.h"
+#include "Engine/Shader.h"
 
 using namespace Microsoft::WRL;
 
@@ -22,16 +24,30 @@ private:
 
 	Core* core;
 
-	ComPtr<ID3D12Device> dev;
-	ComPtr<ID3D12GraphicsCommandList> list;
-
 	std::vector<vertex> vertices;
 	UINT vertexSize;
 
 	ComPtr<ID3D12Resource> vertexBuff;
 	D3D12_VERTEX_BUFFER_VIEW vbView;
 
+	ComPtr<ID3D12PipelineState> plState;
+
+	ComPtr<ID3D12Resource> wvpBuff;
+	D3D12_GPU_DESCRIPTOR_HANDLE wvpGPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE wvpCPUHandle;
+
+	ComPtr<ID3D12RootSignature> rootSig;
+
+
+	bool bLoaded;
+
 	void InitPipeline();
+
+	int width, height;
+
+	Shader* shader;
+
+	WVP wvp;
 
 public:
 	Transform transform;

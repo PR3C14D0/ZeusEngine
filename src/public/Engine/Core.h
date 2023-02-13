@@ -13,6 +13,7 @@
 using namespace Microsoft::WRL;
 
 class Core {
+	friend class GameObject;
 private:
 	HWND hwnd;
 	static Core* instance;
@@ -41,6 +42,10 @@ private:
 	D3D12_RECT scissorRect;
 	int width, height;
 
+	ComPtr<ID3D12DescriptorHeap> cbv_srvHeap;
+	UINT cbv_srvHeapIncrementSize;
+	UINT cbv_srvUsedDescriptors;
+
 	ComPtr<ID3D12Fence> fence;
 	HANDLE fenceEvent;
 	UINT nCurrentFence;
@@ -50,7 +55,11 @@ private:
 	bool GetMostCapableAdapter(ComPtr<IDXGIAdapter>& adapter, ComPtr<IDXGIFactory2>& factory);
 	D3D_FEATURE_LEVEL GetMaxFeatureLevel(ComPtr<IDXGIAdapter>& adapter);
 
+	ComPtr<ID3D12Resource> zBuffer;
+	ComPtr<ID3D12DescriptorHeap> dsvHeap;
+
 	void WaitFrame();
+	void PopulateCommandList();
 public:
 	Core();
 	static Core* GetInstance();
@@ -58,7 +67,16 @@ public:
 	void GetHWND(HWND& hwnd);
 	void Init();
 
+	UINT CBV_SRV_AddDescriptorToCount();
+
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE type);
+	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE type);
+	UINT GetDescriptorHeapHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE type);
+
 	void GetDevice(ComPtr<ID3D12Device>& dev, ComPtr<ID3D12GraphicsCommandList>& list);
+
+
+	void GetWindowSize(int& width, int& height);
 	
 	void MainLoop();
 };
