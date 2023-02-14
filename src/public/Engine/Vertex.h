@@ -9,3 +9,8 @@ struct vertex {
 	UV uv;
 	POSITION normal;
 };
+
+struct ScreenQuadVertex {
+	POSITION pos;
+	UV uv;
+};

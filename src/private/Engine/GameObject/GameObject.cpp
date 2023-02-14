@@ -97,7 +97,7 @@ void GameObject::InitPipeline() {
 	this->wvpCPUHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(cbv_srvCPUDescriptorHeap, wvpIndex, cbv_srvIncrementSize);
 	this->wvpGPUHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(cbv_srvGPUDescriptorHeap, wvpIndex, cbv_srvIncrementSize);
 
-	UINT alignedWVPSize = (sizeof(this->wvp) + 255) & ~255;
+	this->alignedWVPSize = (sizeof(this->wvp) + 255) & ~255;
 	D3D12_RESOURCE_DESC wvpDesc = CD3DX12_RESOURCE_DESC::Buffer(alignedWVPSize);
 	D3D12_HEAP_PROPERTIES wvpProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 	ThrowIfFailed(this->core->dev->CreateCommittedResource(
@@ -181,7 +181,16 @@ void GameObject::InitPipeline() {
 	ThrowIfFailed(this->core->dev->CreateGraphicsPipelineState(&plDesc, IID_PPV_ARGS(this->plState.GetAddressOf())));
 }
 
+void GameObject::UpdateConstantBuffers() {
+	PUINT ms = nullptr;
+	this->wvpBuff->Map(NULL, nullptr, (void**)&ms);
+	memcpy(ms, &this->wvp, this->alignedWVPSize);
+	this->wvpBuff->Unmap(NULL, nullptr);
+}
+
 void GameObject::Render() {
+	this->wvp.View *= XMMatrixTranspose(XMMatrixRotationY(XMConvertToRadians(1.f)));
+	this->UpdateConstantBuffers();
 	this->core->list->SetPipelineState(this->plState.Get());
 	this->core->list->IASetVertexBuffers(0, 1, &this->vbView);
 	this->core->list->SetGraphicsRootSignature(this->rootSig.Get());

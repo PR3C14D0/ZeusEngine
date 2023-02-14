@@ -9,6 +9,7 @@
 #include "Util/Util.h"
 #include "Engine/Shader.h"
 #include "Engine/Scene/SceneManager.h"
+#include "Engine/Vertex.h"
 
 using namespace Microsoft::WRL;
 
@@ -60,14 +61,30 @@ private:
 	ComPtr<ID3D12Resource> zBuffer;
 	ComPtr<ID3D12DescriptorHeap> dsvHeap;
 
+	ComPtr<ID3D12Resource> sqBuff;
+	D3D12_VERTEX_BUFFER_VIEW sqBuffView;
+	ComPtr<ID3D12Resource> sqIBO;
+	D3D12_INDEX_BUFFER_VIEW sqIBOView;
+	Shader* sqShader;
+	ComPtr<ID3D12PipelineState> sqPl;
+	ComPtr<ID3D12RootSignature> sqRs;
+	UINT albedoIndex;
+	UINT normalIndex;
+
+	ComPtr<ID3D12DescriptorHeap> samplerHeap;
+
+	void RenderScreenQuad();
+
 	void WaitFrame();
 	void PopulateCommandList();
+	void InitScreenQuad();
 public:
 	Core();
 	static Core* GetInstance();
 	void SetHWND(HWND& hwnd);
 	void GetHWND(HWND& hwnd);
 	void Init();
+
 
 	UINT CBV_SRV_AddDescriptorToCount();
 

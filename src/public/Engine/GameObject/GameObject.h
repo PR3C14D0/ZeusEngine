@@ -35,6 +35,7 @@ private:
 	ComPtr<ID3D12Resource> wvpBuff;
 	D3D12_GPU_DESCRIPTOR_HANDLE wvpGPUHandle;
 	D3D12_CPU_DESCRIPTOR_HANDLE wvpCPUHandle;
+	UINT alignedWVPSize;
 
 	ComPtr<ID3D12RootSignature> rootSig;
 
@@ -42,6 +43,7 @@ private:
 	bool bLoaded;
 
 	void InitPipeline();
+	void UpdateConstantBuffers();
 
 	int width, height;
 
