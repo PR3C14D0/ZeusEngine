@@ -10,11 +10,13 @@
 #include "Engine/Shader.h"
 #include "Engine/Scene/SceneManager.h"
 #include "Engine/Vertex.h"
+#include "Engine/ScreenQuad.h"
 
 using namespace Microsoft::WRL;
 
 class Core {
 	friend class GameObject;
+	friend class ScreenQuad;
 private:
 	HWND hwnd;
 	static Core* instance;
@@ -54,6 +56,7 @@ private:
 	UINT nCurrentFence;
 
 	SceneManager* sceneMgr;
+	ScreenQuad* screenQuad;
 	
 	bool GetMostCapableAdapter(ComPtr<IDXGIAdapter>& adapter, ComPtr<IDXGIFactory2>& factory);
 	D3D_FEATURE_LEVEL GetMaxFeatureLevel(ComPtr<IDXGIAdapter>& adapter);
@@ -61,23 +64,12 @@ private:
 	ComPtr<ID3D12Resource> zBuffer;
 	ComPtr<ID3D12DescriptorHeap> dsvHeap;
 
-	ComPtr<ID3D12Resource> sqBuff;
-	D3D12_VERTEX_BUFFER_VIEW sqBuffView;
-	ComPtr<ID3D12Resource> sqIBO;
-	D3D12_INDEX_BUFFER_VIEW sqIBOView;
-	Shader* sqShader;
-	ComPtr<ID3D12PipelineState> sqPl;
-	ComPtr<ID3D12RootSignature> sqRs;
-	UINT albedoIndex;
-	UINT normalIndex;
-
 	ComPtr<ID3D12DescriptorHeap> samplerHeap;
-
-	void RenderScreenQuad();
+	UINT nSamplerIncrementSize;
+	UINT nSamplerUsedDescriptors;
 
 	void WaitFrame();
 	void PopulateCommandList();
-	void InitScreenQuad();
 public:
 	Core();
 	static Core* GetInstance();
@@ -87,6 +79,7 @@ public:
 
 
 	UINT CBV_SRV_AddDescriptorToCount();
+	UINT SAMPLER_AddDescriptorToCount();
 
 	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE type);
 	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE type);
