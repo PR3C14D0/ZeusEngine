@@ -39,6 +39,8 @@ ScreenQuad::ScreenQuad() {
 	memcpy(mappedVBO, vertices, verticesSize);
 	this->vertexBuff->Unmap(NULL, nullptr);
 
+	this->vertexBuff->SetName(L"Screen Quad VBO");
+
 	this->vbView.BufferLocation = this->vertexBuff->GetGPUVirtualAddress();
 	this->vbView.SizeInBytes = verticesSize;
 	this->vbView.StrideInBytes = sizeof(ScreenQuadVertex);

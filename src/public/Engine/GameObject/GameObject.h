@@ -11,6 +11,9 @@
 #include "Util/Util.h"
 #include "Engine/WVP.h"
 #include "Engine/Shader.h"
+#include <wincodec.h>
+#include <dxtk/WICTextureLoader.h>
+#include <dxtk/ResourceUploadBatch.h>
 
 using namespace Microsoft::WRL;
 
@@ -30,15 +33,31 @@ private:
 	ComPtr<ID3D12Resource> vertexBuff;
 	D3D12_VERTEX_BUFFER_VIEW vbView;
 
+	ComPtr<ID3D12Resource> texture;
+	D3D12_GPU_DESCRIPTOR_HANDLE textureGPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE textureCPUHandle;
+	UINT textureIndex;
+
 	ComPtr<ID3D12PipelineState> plState;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE cbv_srvCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE cbv_srvGPUHandle;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE samplerCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE samplerGPUHandle;
+	UINT samplerIncrementSize;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE texSamplerCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE texSamplerGPUHandle;
+	UINT texSamplerIndex;
 
 	ComPtr<ID3D12Resource> wvpBuff;
 	D3D12_GPU_DESCRIPTOR_HANDLE wvpGPUHandle;
 	D3D12_CPU_DESCRIPTOR_HANDLE wvpCPUHandle;
 	UINT alignedWVPSize;
+	UINT cbv_srvIncrementSize;
 
 	ComPtr<ID3D12RootSignature> rootSig;
-
 
 	bool bLoaded;
 

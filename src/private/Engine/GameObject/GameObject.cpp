@@ -7,6 +7,13 @@ GameObject::GameObject(std::string name) {
 	this->vertexSize = sizeof(vertex);
 	this->bLoaded = false;
 	this->core->GetWindowSize(this->width, this->height);
+	this->cbv_srvCPUHandle = this->core->GetCPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	this->cbv_srvGPUHandle = this->core->GetGPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	this->cbv_srvIncrementSize = this->core->GetDescriptorHeapHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	this->samplerCPUHandle = this->core->GetCPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+	this->samplerGPUHandle = this->core->GetGPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+	this->samplerIncrementSize = this->core->GetDescriptorHeapHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 }
 
 /*
@@ -23,6 +30,7 @@ void GameObject::LoadModel(std::string fileName) {
 		return;
 	}
 	aiMesh* mesh = scene->mMeshes[0]; // TODO: Support many meshes.
+	aiMaterial* mat = scene->mMaterials[mesh->mMaterialIndex];
 
 	for (int i = 0; i < mesh->mNumVertices; i++) {
 		POSITION pos = { 0.f, 0.f, 0.f };
@@ -48,6 +56,50 @@ void GameObject::LoadModel(std::string fileName) {
 		}
 
 		this->vertices.push_back(vertex { { pos[0], pos[1], pos[2] }, { uv[0], uv[1] }, { normal[0], normal[1], normal[2] } });
+	}
+
+	aiString texPath;
+	if (scene->HasTextures()) {
+		if (mat->GetTextureCount(aiTextureType_DIFFUSE) > 0 && mat->GetTexture(aiTextureType_DIFFUSE, 0, &texPath) == AI_SUCCESS) {
+			const aiTexture* tex = scene->GetEmbeddedTexture(texPath.C_Str());
+			ResourceUploadBatch batch(this->core->dev.Get());
+			batch.Begin(D3D12_COMMAND_LIST_TYPE_DIRECT);
+			ThrowIfFailed(CreateWICTextureFromMemory(this->core->dev.Get(), batch, (BYTE*)tex->pcData, tex->mWidth, this->texture.GetAddressOf()));
+			batch.End(this->core->queue.Get());
+
+			D3D12_SHADER_RESOURCE_VIEW_DESC texDesc = { };
+			texDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			texDesc.Texture2D.MipLevels = 1;
+			texDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			texDesc.Format = this->texture->GetDesc().Format;
+			
+			this->textureIndex = this->core->CBV_SRV_AddDescriptorToCount();
+			this->textureCPUHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(this->cbv_srvCPUHandle, this->textureIndex, this->cbv_srvIncrementSize);
+			this->textureGPUHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(this->cbv_srvGPUHandle, this->textureIndex, this->cbv_srvIncrementSize);
+
+			this->texture->SetName(L"Model texture");
+
+			this->core->dev->CreateShaderResourceView(
+				this->texture.Get(),
+				&texDesc,
+				this->textureCPUHandle
+			);
+
+			this->texSamplerIndex = this->core->SAMPLER_AddDescriptorToCount();
+			this->texSamplerCPUHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(this->samplerCPUHandle, this->texSamplerIndex, this->samplerIncrementSize);
+			this->texSamplerGPUHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(this->samplerGPUHandle, this->texSamplerIndex, this->samplerIncrementSize);
+
+			D3D12_SAMPLER_DESC samplerDesc = { };
+			samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+			samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+			samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+			samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+			samplerDesc.Filter = D3D12_FILTER_MAXIMUM_MIN_MAG_MIP_LINEAR;
+			samplerDesc.MinLOD = 0.f;
+			samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+			
+			this->core->dev->CreateSampler(&samplerDesc, this->samplerCPUHandle);
+		}
 	}
 
 	this->bLoaded = true;
@@ -90,12 +142,9 @@ void GameObject::InitPipeline() {
 	this->wvp.Projection = XMMatrixTranspose(XMMatrixPerspectiveFovLH(XMConvertToRadians(90.f), ((float)this->width / (float)this->height), .01f, 300.f)); // TODO Create camera class
 
 	UINT wvpIndex = this->core->CBV_SRV_AddDescriptorToCount();
-	D3D12_CPU_DESCRIPTOR_HANDLE cbv_srvCPUDescriptorHeap = this->core->GetCPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	D3D12_GPU_DESCRIPTOR_HANDLE cbv_srvGPUDescriptorHeap = this->core->GetGPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	UINT cbv_srvIncrementSize = this->core->GetDescriptorHeapHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	this->wvpCPUHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(cbv_srvCPUDescriptorHeap, wvpIndex, cbv_srvIncrementSize);
-	this->wvpGPUHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(cbv_srvGPUDescriptorHeap, wvpIndex, cbv_srvIncrementSize);
+	this->wvpCPUHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(cbv_srvCPUHandle, wvpIndex, cbv_srvIncrementSize);
+	this->wvpGPUHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(cbv_srvGPUHandle, wvpIndex, cbv_srvIncrementSize);
 
 	this->alignedWVPSize = (sizeof(this->wvp) + 255) & ~255;
 	D3D12_RESOURCE_DESC wvpDesc = CD3DX12_RESOURCE_DESC::Buffer(alignedWVPSize);
@@ -128,10 +177,26 @@ void GameObject::InitPipeline() {
 	wvpRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0);
 	wvpParam.InitAsDescriptorTable(1, &wvpRange, D3D12_SHADER_VISIBILITY_VERTEX);
 
+	CD3DX12_DESCRIPTOR_RANGE textureRange;
+	CD3DX12_ROOT_PARAMETER textureParam;
+	textureRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
+	textureParam.InitAsDescriptorTable(1, &textureRange, D3D12_SHADER_VISIBILITY_PIXEL);
+
+	CD3DX12_DESCRIPTOR_RANGE samplerRange;
+	CD3DX12_ROOT_PARAMETER samplerParam;
+	samplerRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0, 0);
+	samplerParam.InitAsDescriptorTable(1, &samplerRange, D3D12_SHADER_VISIBILITY_PIXEL);
+
+	D3D12_ROOT_PARAMETER params[] = {
+		wvpParam,
+		textureParam,
+		samplerParam
+	};
+
 	D3D12_ROOT_SIGNATURE_DESC rootSigDesc = { };
 	rootSigDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	rootSigDesc.NumParameters = 1;
-	rootSigDesc.pParameters = &wvpParam;
+	rootSigDesc.NumParameters = _countof(params);
+	rootSigDesc.pParameters = params;
 	rootSigDesc.pStaticSamplers = nullptr;
 	rootSigDesc.NumStaticSamplers = 0;
 
@@ -194,8 +259,16 @@ void GameObject::Render() {
 	this->core->list->SetPipelineState(this->plState.Get());
 	this->core->list->IASetVertexBuffers(0, 1, &this->vbView);
 	this->core->list->SetGraphicsRootSignature(this->rootSig.Get());
-	this->core->list->SetDescriptorHeaps(1, this->core->cbv_srvHeap.GetAddressOf());
+	
+	ID3D12DescriptorHeap* heaps[] = {
+		this->core->cbv_srvHeap.Get(),
+		this->core->samplerHeap.Get()
+	};
+
+	this->core->list->SetDescriptorHeaps(_countof(heaps), heaps);
 	this->core->list->SetGraphicsRootDescriptorTable(0, this->wvpGPUHandle);
+	this->core->list->SetGraphicsRootDescriptorTable(1, this->textureGPUHandle);
+	this->core->list->SetGraphicsRootDescriptorTable(2, this->samplerGPUHandle);
 	this->core->list->DrawInstanced(this->vertices.size(), 1, 0, 0);
 	return;
 }

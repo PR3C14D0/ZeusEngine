@@ -369,6 +369,8 @@ void Core::Init() {
 	this->width = rect.right - rect.left;
 	this->height = rect.bottom - rect.top;
 
+	ThrowIfFailed(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
+
 	this->InitD3D();
 
 	this->bInitialized = true;

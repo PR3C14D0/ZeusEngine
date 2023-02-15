@@ -11,7 +11,7 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
 endif()
 
 set(SOURCE_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/public")
-set(DX_LIB "d3d12.lib;dxgi.lib;d3dcompiler.lib")
+set(DX_LIB "d3d12.lib;dxgi.lib;d3dcompiler.lib;${CMAKE_CURRENT_SOURCE_DIR}/../lib/directx/DirectXTK12.lib")
 set(GLOBAL_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 set(ASSIMP_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../lib/assimp/assimp.lib")
 

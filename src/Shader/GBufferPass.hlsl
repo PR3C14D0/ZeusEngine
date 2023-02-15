@@ -23,6 +23,9 @@ VertexOutput VertexMain(float4 position : POSITION, float2 uv : TEXCOORD, float4
     return output;
 }
 
+Texture2D modelTex : register(t0);
+SamplerState sState : register(s0);
+
 struct PixelOutput
 {
     float4 albedo : SV_Target0;
@@ -32,7 +35,8 @@ struct PixelOutput
 PixelOutput PixelMain(VertexOutput input)
 {
     PixelOutput output;
-    output.albedo = float4(input.uv.xy, 0.f, 1.f);
-    output.normal = input.normal;
+    output.albedo = modelTex.Sample(sState, float2(input.uv.x, 1 - input.uv.y));
+    float3 normal = float3(input.normal.xyz * 0.5f + float3(0.5f, 0.5f, 0.5f)); // Pack our normals
+    output.normal = float4(normal, 1.f);
     return output;
 }
