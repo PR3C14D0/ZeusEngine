@@ -6,6 +6,8 @@ Core::Core() {
 	this->hwnd = NULL;
 	this->bInitialized = false;
 	this->nNumBackBuffers = 2;
+	this->cbv_srvUsedDescriptors = 0;
+	this->nSamplerUsedDescriptors = 0;
 }
 
 /*
@@ -18,8 +20,9 @@ void Core::InitD3D() {
 	dxgiFactoryCreateFlags |= DXGI_CREATE_FACTORY_DEBUG;
 
 	{
-		ComPtr<ID3D12Debug> debug;
+		ComPtr<ID3D12Debug1> debug;
 		ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(debug.GetAddressOf())));
+		debug->EnableDebugLayer();
 	}
 #endif // NDEBUG
 
@@ -49,6 +52,8 @@ void Core::InitD3D() {
 		scDesc.SampleDesc.Count = 1;
 		scDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 		scDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		scDesc.Width = this->width;
+		scDesc.Height = this->height;
 
 		this->factory->CreateSwapChainForHwnd(this->queue.Get(), this->hwnd, &scDesc, nullptr, nullptr, sc.GetAddressOf());
 
@@ -57,7 +62,7 @@ void Core::InitD3D() {
 
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = { };
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	rtvHeapDesc.NumDescriptors = this->nNumBackBuffers;
+	rtvHeapDesc.NumDescriptors = this->nNumBackBuffers + 3;
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
 	ThrowIfFailed(this->dev->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(this->rtvHeap.GetAddressOf())));
@@ -65,7 +70,7 @@ void Core::InitD3D() {
 	this->nRTVHeapIncrementSize = this->dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart());
-	
+
 	for (int i = 0; i < this->nNumBackBuffers; i++) {
 		ComPtr<ID3D12Resource> backBuffer;
 		ThrowIfFailed(this->sc->GetBuffer(i, IID_PPV_ARGS(backBuffer.GetAddressOf())));
@@ -75,10 +80,49 @@ void Core::InitD3D() {
 		rtvHandle.Offset(1, this->nRTVHeapIncrementSize);
 	}
 
-	this->UploadBuffer();
-	this->InitPipeline();
-	ThrowIfFailed(this->dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, this->allocator.Get(), this->plState.Get(), IID_PPV_ARGS(this->list.GetAddressOf())));
-	
+	gbufferIndices[0] = this->nNumBackBuffers;
+	gbufferIndices[1] = this->nNumBackBuffers + 1;
+	gbufferIndices[2] = this->gbufferIndices[1] + 1;
+
+	D3D12_RESOURCE_DESC gBuffDesc = { };
+	gBuffDesc.DepthOrArraySize = 1;
+	gBuffDesc.MipLevels = 1;
+	gBuffDesc.Height = this->height;
+	gBuffDesc.Width = this->width;
+	gBuffDesc.SampleDesc.Count = 1;
+	gBuffDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	gBuffDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	gBuffDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+
+	D3D12_HEAP_PROPERTIES gBuffProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+	D3D12_RENDER_TARGET_VIEW_DESC grtvDesc = { };
+	grtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	grtvDesc.Format = gBuffDesc.Format;
+
+	D3D12_CLEAR_VALUE gbuffClear = { };
+	gbuffClear.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	gbuffClear.Color[3] = 1.f;
+
+	for (int n : this->gbufferIndices) {
+		ComPtr<ID3D12Resource> gbuffer;
+		this->dev->CreateCommittedResource(
+			&gBuffProps,
+			D3D12_HEAP_FLAG_NONE,
+			&gBuffDesc,
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			&gbuffClear,
+			IID_PPV_ARGS(gbuffer.GetAddressOf())
+		);
+
+		this->gbuffers.push_back(gbuffer);
+
+		this->dev->CreateRenderTargetView(this->gbuffers[n - this->nNumBackBuffers].Get(), &grtvDesc, rtvHandle);
+		rtvHandle.Offset(1, this->nRTVHeapIncrementSize);
+	}
+
+	ThrowIfFailed(this->dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, this->allocator.Get(), nullptr, IID_PPV_ARGS(this->list.GetAddressOf())));
+
 	ThrowIfFailed(this->list->Close());
 
 	ZeroMemory(&this->viewport, sizeof(D3D12_VIEWPORT));
@@ -86,77 +130,93 @@ void Core::InitD3D() {
 	this->viewport.Width = this->width;
 	this->viewport.TopLeftX = 0;
 	this->viewport.TopLeftY = 0;
+	this->viewport.MinDepth = 0.f;
+	this->viewport.MaxDepth = 1.f;
 
 	this->scissorRect = CD3DX12_RECT(0, 0, (LONG)this->width, (LONG)this->height);
+
+	D3D12_DESCRIPTOR_HEAP_DESC cbvSrvHeapDesc = { };
+	cbvSrvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	cbvSrvHeapDesc.NumDescriptors = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1;
+	cbvSrvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+
+
+	ThrowIfFailed(this->dev->CreateDescriptorHeap(&cbvSrvHeapDesc, IID_PPV_ARGS(this->cbv_srvHeap.GetAddressOf())));
+	this->cbv_srvHeapIncrementSize = this->dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = { };
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NumDescriptors = 1;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	ThrowIfFailed(this->dev->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(this->dsvHeap.GetAddressOf())));
+
+	D3D12_RESOURCE_DESC dsvTexDesc = { };
+	dsvTexDesc.DepthOrArraySize = 1;
+	dsvTexDesc.MipLevels = 1;
+	dsvTexDesc.SampleDesc.Count = 1;
+	dsvTexDesc.Height = this->height;
+	dsvTexDesc.Width = this->width;
+	dsvTexDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	dsvTexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+	dsvTexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+
+	D3D12_HEAP_PROPERTIES dsvTexProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+	D3D12_CLEAR_VALUE dsvClear = { };
+	dsvClear.DepthStencil.Depth = 1.f;
+	dsvClear.DepthStencil.Stencil = 1.f;
+	dsvClear.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+
+
+	ThrowIfFailed(
+		this->dev->CreateCommittedResource(
+			&dsvTexProps,
+			D3D12_HEAP_FLAG_NONE,
+			&dsvTexDesc,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			&dsvClear,
+			IID_PPV_ARGS(this->zBuffer.GetAddressOf())
+		)
+	);
+
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = { };
+	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Format = dsvTexDesc.Format;
+
+	this->dev->CreateDepthStencilView(this->zBuffer.Get(), &dsvDesc, this->dsvHeap->GetCPUDescriptorHandleForHeapStart());
+
+	D3D12_DESCRIPTOR_HEAP_DESC samplerHeapDesc = { };
+	samplerHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	samplerHeapDesc.NumDescriptors = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
+	samplerHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+
+	ThrowIfFailed(this->dev->CreateDescriptorHeap(&samplerHeapDesc, IID_PPV_ARGS(this->samplerHeap.GetAddressOf())));
+	this->nSamplerIncrementSize = this->dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+
+	this->gbuffers[0]->SetName(L"Albedo FBO");
+	this->gbuffers[1]->SetName(L"Normal FBO");
+	this->gbuffers[2]->SetName(L"Position FBO");
+	this->zBuffer->SetName(L"Depth Buffer");
+
+	this->sceneMgr = SceneManager::GetInstance();
+	this->screenQuad = new ScreenQuad();
 
 	this->nCurrentFence = 1;
 	ThrowIfFailed(this->dev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(this->fence.GetAddressOf())));
 	this->fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	
+	this->vSyncState = ENABLED;
+
 	this->WaitFrame();
 }
 
 /*
-*	TODO: Delete this.
+	This method is for getting our window height and width
 */
-void Core::UploadBuffer() {
-	vertex vertices[] = {
-		{{.0f, .5f, 0.f}, {1.f, 0.f, 0.f, 1.f}},
-		{{.5f, -.5f, 0.f}, {0.f, 1.f, 0.f, 1.f}},
-		{{-.5f, -.5f, 0.f}, {0.f, 0.f, 1.f, 1.f}},
-	};
-
-	UINT verticesSize = sizeof(vertices);
-
-	D3D12_RESOURCE_DESC buffDesc = CD3DX12_RESOURCE_DESC::Buffer(verticesSize);
-	D3D12_HEAP_PROPERTIES buffProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-
-	ThrowIfFailed(this->dev->CreateCommittedResource(
-		&buffProps,
-		D3D12_HEAP_FLAG_NONE,
-		&buffDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(this->vertexBuffer.GetAddressOf())
-	));
-
-	PUINT mappedBuffer;
-	this->vertexBuffer->Map(NULL, nullptr, (void**)&mappedBuffer);
-	memcpy(mappedBuffer, vertices, verticesSize);
-	this->vertexBuffer->Unmap(0, nullptr);
-
-	this->vertexBuffView.BufferLocation = this->vertexBuffer->GetGPUVirtualAddress();
-	this->vertexBuffView.SizeInBytes = verticesSize;
-	this->vertexBuffView.StrideInBytes = sizeof(vertex);
-
-	return;
-}
-
-/*
-	This method populates our command list.
-	I'll modify this method drastically soon.
-*/
-void Core::PopulateCommandList() {
-	ThrowIfFailed(this->allocator->Reset());
-	ThrowIfFailed(this->list->Reset(this->allocator.Get(), this->plState.Get()));
-
-	D3D12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	this->list->ResourceBarrier(1, &resourceBarrier);
-
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->nCurrentBackBuffer, this->nRTVHeapIncrementSize);
-	this->list->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-	this->list->ClearRenderTargetView(rtvHandle, RGBA{ 0.f, 0.f, 0.f, 1.f }, 0, nullptr);
-	this->list->IASetVertexBuffers(0, 1, &this->vertexBuffView);
-	this->list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	this->list->SetGraphicsRootSignature(this->rootSig.Get());
-	this->list->RSSetScissorRects(1, &this->scissorRect);
-	this->list->RSSetViewports(1, &this->viewport);
-	this->list->DrawInstanced(3, 1, 0, 0);
-
-	resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-	this->list->ResourceBarrier(1, &resourceBarrier);
-
-	this->list->Close();
-
+void Core::GetWindowSize(int& width, int& height) {
+	width = this->width;
+	height = this->height;
 	return;
 }
 
@@ -178,69 +238,63 @@ void Core::WaitFrame() {
 }
 
 /*
+	This method gets our device and command list.
+*/
+void Core::GetDevice(ComPtr<ID3D12Device>& dev, ComPtr<ID3D12GraphicsCommandList>& list) {
+	if (!this->bInitialized) return;
+	dev = this->dev;
+	list = this->list;
+	return;
+}
+
+void Core::PopulateCommandList() {
+	ThrowIfFailed(this->allocator->Reset());
+	ThrowIfFailed(this->list->Reset(this->allocator.Get(), nullptr));
+
+	D3D12_RESOURCE_BARRIER resBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	this->list->ResourceBarrier(1, &resBarrier);
+	
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->nCurrentBackBuffer, this->nRTVHeapIncrementSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(this->dsvHeap->GetCPUDescriptorHandleForHeapStart());
+		
+	std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> gbufferHandles;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE albedoHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->gbufferIndices[0], this->nRTVHeapIncrementSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE normalHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->gbufferIndices[1], this->nRTVHeapIncrementSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE positionHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->gbufferIndices[2], this->nRTVHeapIncrementSize);
+
+	gbufferHandles.push_back(albedoHandle);
+	gbufferHandles.push_back(normalHandle);
+	gbufferHandles.push_back(positionHandle);
+
+	this->list->OMSetRenderTargets(gbufferHandles.size(), gbufferHandles.data(), FALSE, &dsvHandle);
+	this->list->ClearRenderTargetView(albedoHandle, RGBA{ 0.f, 0.f, 0.f, 1.f }, 0, nullptr);
+	this->list->ClearRenderTargetView(normalHandle, RGBA{ 0.f, 0.f, 0.f, 1.f }, 0, nullptr);
+	this->list->ClearRenderTargetView(positionHandle, RGBA{0.f, 0.f, 0.f, 1.f}, 0, nullptr);
+	this->list->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.f, 0.f, 0, nullptr);
+	
+	this->list->RSSetScissorRects(1, &this->scissorRect);
+	this->list->RSSetViewports(1, &this->viewport);
+	this->list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	this->sceneMgr->Render();
+
+	this->list->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	this->list->ClearRenderTargetView(rtvHandle, RGBA{ 0.f, 0.f, 0.f, 1.f }, 0, nullptr);
+	this->screenQuad->Render();
+	resBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	this->list->ResourceBarrier(1, &resBarrier);
+	ThrowIfFailed(this->list->Close());
+}
+
+/*
 	Our render loop
 */
 void Core::MainLoop() {
 	this->PopulateCommandList();
 	ID3D12CommandList* cmdLists[] = { this->list.Get() };
 	this->queue->ExecuteCommandLists(1, cmdLists);
-	this->sc->Present(1, 0);
+	this->sc->Present(this->vSyncState, 0);
 	this->WaitFrame();
-}
-
-/*
-	This method initializes our pipeline state
-		TODO: Create many pipelines for each GameObject (I'll create GameObject class soon)
-*/
-void Core::InitPipeline() {
-	D3D12_ROOT_SIGNATURE_DESC rootSigDesc = { };
-	rootSigDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	rootSigDesc.NumParameters = 0;
-	rootSigDesc.pParameters = nullptr;
-	rootSigDesc.NumStaticSamplers = 0;
-	rootSigDesc.pStaticSamplers = nullptr;
-
-	ComPtr<ID3DBlob> rootSigBlob, rootSigErr;
-	ThrowIfFailed(D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, rootSigBlob.GetAddressOf(), rootSigErr.GetAddressOf()));
-
-	if (rootSigErr) {
-		MessageBox(this->hwnd, (char*)rootSigErr->GetBufferPointer(), "Error", MB_OK | MB_ICONERROR);
-		return;
-	}
-
-	ThrowIfFailed(this->dev->CreateRootSignature(0, rootSigBlob->GetBufferPointer(), rootSigBlob->GetBufferSize(), IID_PPV_ARGS(this->rootSig.GetAddressOf())));
-
-	Shader* shader = new Shader(L"shader.fx", "VertexMain", "PixelMain");
-	ComPtr<ID3DBlob> VS, PS;
-	shader->GetBlob(VS, PS);
-
-	D3D12_INPUT_ELEMENT_DESC elements[] = {
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, NULL},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, NULL},
-	};
-
-	UINT nNumElements = _countof(elements);
-
-	D3D12_INPUT_LAYOUT_DESC layout = { };
-	layout.NumElements = nNumElements;
-	layout.pInputElementDescs = elements;
-
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC plDesc = { };
-	plDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	plDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	plDesc.RTVFormats[0] = DXGI_FORMAT_B8G8R8A8_UNORM;
-	plDesc.NumRenderTargets = 1;
-	plDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	plDesc.pRootSignature = this->rootSig.Get();
-	plDesc.VS = CD3DX12_SHADER_BYTECODE(VS.Get());
-	plDesc.PS = CD3DX12_SHADER_BYTECODE(PS.Get());
-	plDesc.DepthStencilState.DepthEnable = FALSE;
-	plDesc.DepthStencilState.StencilEnable = FALSE;
-	plDesc.InputLayout = layout;
-	plDesc.SampleDesc.Count = 1;
-	plDesc.SampleMask = UINT32_MAX;
-	
-	ThrowIfFailed(this->dev->CreateGraphicsPipelineState(&plDesc, IID_PPV_ARGS(this->plState.GetAddressOf())));
 }
 
 /*
@@ -327,13 +381,60 @@ void Core::Init() {
 	this->width = rect.right - rect.left;
 	this->height = rect.bottom - rect.top;
 
+	ThrowIfFailed(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
+
 	this->InitD3D();
 
 	this->bInitialized = true;
 }
 
 Core* Core::GetInstance() {
-	if (!Core::instance)
+	if (Core::instance == nullptr)
 		Core::instance = new Core();
 	return Core::instance;
+}
+
+UINT Core::CBV_SRV_AddDescriptorToCount() {
+	UINT returnedIndex = this->cbv_srvUsedDescriptors;
+	this->cbv_srvUsedDescriptors++;
+	return returnedIndex;
+}
+
+UINT Core::SAMPLER_AddDescriptorToCount() {
+	UINT returnedIndex = this->nSamplerUsedDescriptors;
+	this->nSamplerUsedDescriptors++;
+	return returnedIndex;
+}
+
+/*
+	Returns a descriptor heap CPU handle.
+*/
+D3D12_CPU_DESCRIPTOR_HANDLE Core::GetCPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE type) {
+	D3D12_CPU_DESCRIPTOR_HANDLE handle{};
+	if (type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+		handle = this->cbv_srvHeap->GetCPUDescriptorHandleForHeapStart();
+	if (type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
+		handle = this->samplerHeap->GetCPUDescriptorHandleForHeapStart();
+
+	return handle;
+}
+
+/*
+	Returns a descriptor heap GPU handle.
+*/
+D3D12_GPU_DESCRIPTOR_HANDLE Core::GetGPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE type) {
+	if (type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+		return this->cbv_srvHeap->GetGPUDescriptorHandleForHeapStart();
+	if(type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
+		return this->samplerHeap->GetGPUDescriptorHandleForHeapStart();
+}
+
+/*
+	Returns a descriptor heap cpu handle increment size.
+*/
+UINT Core::GetDescriptorHeapHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE type) {
+	if (type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)
+		return this->cbv_srvHeapIncrementSize;
+	if (type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
+		return this->nSamplerIncrementSize;
 }
