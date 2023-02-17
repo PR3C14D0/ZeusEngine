@@ -18,3 +18,7 @@ SceneManager* SceneManager::GetInstance() {
 void SceneManager::Render() {
 	this->actualScene->Render();
 }
+
+Scene* SceneManager::GetActualScene() {
+	return this->actualScene;
+}

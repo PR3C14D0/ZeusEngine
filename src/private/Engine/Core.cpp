@@ -62,7 +62,7 @@ void Core::InitD3D() {
 
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = { };
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	rtvHeapDesc.NumDescriptors = this->nNumBackBuffers + 2; // +2 Because of Albedo and Normals
+	rtvHeapDesc.NumDescriptors = this->nNumBackBuffers + 3;
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
 	ThrowIfFailed(this->dev->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(this->rtvHeap.GetAddressOf())));
@@ -82,6 +82,7 @@ void Core::InitD3D() {
 
 	gbufferIndices[0] = this->nNumBackBuffers;
 	gbufferIndices[1] = this->nNumBackBuffers + 1;
+	gbufferIndices[2] = this->gbufferIndices[1] + 1;
 
 	D3D12_RESOURCE_DESC gBuffDesc = { };
 	gBuffDesc.DepthOrArraySize = 1;
@@ -193,12 +194,20 @@ void Core::InitD3D() {
 	ThrowIfFailed(this->dev->CreateDescriptorHeap(&samplerHeapDesc, IID_PPV_ARGS(this->samplerHeap.GetAddressOf())));
 	this->nSamplerIncrementSize = this->dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
+	this->gbuffers[0]->SetName(L"Albedo FBO");
+	this->gbuffers[1]->SetName(L"Normal FBO");
+	this->gbuffers[2]->SetName(L"Position FBO");
+	this->zBuffer->SetName(L"Depth Buffer");
+
 	this->sceneMgr = SceneManager::GetInstance();
 	this->screenQuad = new ScreenQuad();
 
 	this->nCurrentFence = 1;
 	ThrowIfFailed(this->dev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(this->fence.GetAddressOf())));
 	this->fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	
+	this->vSyncState = ENABLED;
+
 	this->WaitFrame();
 }
 
@@ -251,13 +260,16 @@ void Core::PopulateCommandList() {
 	std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> gbufferHandles;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE albedoHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->gbufferIndices[0], this->nRTVHeapIncrementSize);
 	CD3DX12_CPU_DESCRIPTOR_HANDLE normalHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->gbufferIndices[1], this->nRTVHeapIncrementSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE positionHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->gbufferIndices[2], this->nRTVHeapIncrementSize);
 
 	gbufferHandles.push_back(albedoHandle);
 	gbufferHandles.push_back(normalHandle);
+	gbufferHandles.push_back(positionHandle);
 
 	this->list->OMSetRenderTargets(gbufferHandles.size(), gbufferHandles.data(), FALSE, &dsvHandle);
 	this->list->ClearRenderTargetView(albedoHandle, RGBA{ 0.f, 0.f, 0.f, 1.f }, 0, nullptr);
-	this->list->ClearRenderTargetView(normalHandle, RGBA{0.f, 0.f, 0.f, 1.f}, 0, nullptr);
+	this->list->ClearRenderTargetView(normalHandle, RGBA{ 0.f, 0.f, 0.f, 1.f }, 0, nullptr);
+	this->list->ClearRenderTargetView(positionHandle, RGBA{0.f, 0.f, 0.f, 1.f}, 0, nullptr);
 	this->list->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.f, 0.f, 0, nullptr);
 	
 	this->list->RSSetScissorRects(1, &this->scissorRect);
@@ -281,7 +293,7 @@ void Core::MainLoop() {
 	this->PopulateCommandList();
 	ID3D12CommandList* cmdLists[] = { this->list.Get() };
 	this->queue->ExecuteCommandLists(1, cmdLists);
-	this->sc->Present(1, 0);
+	this->sc->Present(this->vSyncState, 0);
 	this->WaitFrame();
 }
 

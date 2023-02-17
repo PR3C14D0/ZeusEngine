@@ -11,5 +11,6 @@ private:
 public:
 	SceneManager();
 	static SceneManager* GetInstance();
+	Scene* GetActualScene();
 	void Render();
 };

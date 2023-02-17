@@ -232,7 +232,8 @@ void GameObject::InitPipeline() {
 	plDesc.PS = CD3DX12_SHADER_BYTECODE(PS.Get());
 	plDesc.RTVFormats[0] = DXGI_FORMAT_B8G8R8A8_UNORM;
 	plDesc.RTVFormats[1] = DXGI_FORMAT_B8G8R8A8_UNORM;
-	plDesc.NumRenderTargets = 2;
+	plDesc.RTVFormats[2] = DXGI_FORMAT_B8G8R8A8_UNORM;
+	plDesc.NumRenderTargets = 3;
 	plDesc.SampleDesc.Count = 1;
 	plDesc.SampleMask = UINT32_MAX;
 	plDesc.pRootSignature = this->rootSig.Get();
@@ -254,7 +255,14 @@ void GameObject::UpdateConstantBuffers() {
 }
 
 void GameObject::Render() {
-	this->wvp.View *= XMMatrixTranspose(XMMatrixRotationY(XMConvertToRadians(1.f)));
+	if (!this->bLoaded) return;
+	//this->transform.rotate(0.f, 1.f, 0.f);
+	this->wvp = this->core->sceneMgr->GetActualScene()->actualCamera->GetTransform();
+	this->wvp.World = XMMatrixTranspose(XMMatrixIdentity());
+	this->wvp.World *= XMMatrixTranspose(XMMatrixTranslation(this->transform.location.x, this->transform.location.y, this->transform.location.z));
+	this->wvp.World *= XMMatrixTranspose(XMMatrixRotationX(XMConvertToRadians(this->transform.rotation.x)));
+	this->wvp.World *= XMMatrixTranspose(XMMatrixRotationY(XMConvertToRadians(this->transform.rotation.y)));
+	this->wvp.World *= XMMatrixTranspose(XMMatrixRotationZ(XMConvertToRadians(this->transform.rotation.z)));
 	this->UpdateConstantBuffers();
 	this->core->list->SetPipelineState(this->plState.Get());
 	this->core->list->IASetVertexBuffers(0, 1, &this->vbView);

@@ -14,6 +14,12 @@
 
 using namespace Microsoft::WRL;
 
+enum VSYNC {
+	DISABLED = 0,
+	ENABLED = 1,
+	MEDIUM = 2
+};
+
 class Core {
 	friend class GameObject;
 	friend class ScreenQuad;
@@ -39,7 +45,7 @@ private:
 	ComPtr<ID3D12DescriptorHeap> rtvHeap;
 	std::vector<ComPtr<ID3D12Resource>> backBuffers;
 	std::vector<ComPtr<ID3D12Resource>> gbuffers;
-	UINT gbufferIndices[2];
+	UINT gbufferIndices[3];
 	UINT nRTVHeapIncrementSize;
 	UINT nCurrentBackBuffer;
 
@@ -70,6 +76,8 @@ private:
 
 	void WaitFrame();
 	void PopulateCommandList();
+
+	VSYNC vSyncState;
 public:
 	Core();
 	static Core* GetInstance();

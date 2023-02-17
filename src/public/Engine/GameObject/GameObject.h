@@ -72,10 +72,10 @@ private:
 
 public:
 	Transform transform;
-	GameObject(std::string name);
+	explicit GameObject(std::string name);
 
 	void LoadModel(std::string fileName);
 
-	void Init();
-	void Render();
+	virtual void Init();
+	virtual void Render();
 };

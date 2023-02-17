@@ -3,7 +3,7 @@
 #
 
 # Agregue un origen al ejecutable de este proyecto.
-add_executable (ZeusEngine "main.cpp" "public/Engine/Core.h" "private/Engine/Core.cpp" "public/Util/Util.h" "public/Engine/Shader.h" "private/Engine/Shader.cpp" "public/Engine/Vertex.h" "public/Engine/GameObject/GameObject.h" "private/Engine/GameObject/GameObject.cpp" "public/Math/Vector3.h" "private/Math/Vector3.cpp"  "public/Math/Transform.h" "private/Math/Transform.cpp" "public/Engine/Scene/SceneManager.h" "private/Engine/Scene/SceneManager.cpp" "public/Engine/Scene/Scene.h" "private/Engine/Scene/Scene.cpp" "public/Engine/WVP.h"  "public/Engine/ScreenQuad.h" "private/Engine/ScreenQuad.cpp")
+add_executable (ZeusEngine "main.cpp" "public/Engine/Core.h" "private/Engine/Core.cpp" "public/Util/Util.h" "public/Engine/Shader.h" "private/Engine/Shader.cpp" "public/Engine/Vertex.h" "public/Engine/GameObject/GameObject.h" "private/Engine/GameObject/GameObject.cpp" "public/Math/Vector3.h" "private/Math/Vector3.cpp"  "public/Math/Transform.h" "private/Math/Transform.cpp" "public/Engine/Scene/SceneManager.h" "private/Engine/Scene/SceneManager.cpp" "public/Engine/Scene/Scene.h" "private/Engine/Scene/Scene.cpp" "public/Engine/WVP.h"  "public/Engine/ScreenQuad.h" "private/Engine/ScreenQuad.cpp" "public/Engine/Camera/Camera.h" "private/Engine/Camera/Camera.cpp" "public/Engine/Input.h" "private/Engine/Input.cpp" "private/Engine/Camera/EditorCamera.cpp" "public/Engine/Camera/EditorCamera.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ZeusEngine PROPERTY CXX_STANDARD 20)
