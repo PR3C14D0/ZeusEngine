@@ -8,11 +8,21 @@
 #include <dxgi1_4.h>
 #include "Util/Util.h"
 #include "Engine/Shader.h"
+#include "Engine/Scene/SceneManager.h"
 #include "Engine/Vertex.h"
+#include "Engine/ScreenQuad.h"
 
 using namespace Microsoft::WRL;
 
+enum VSYNC {
+	DISABLED = 0,
+	ENABLED = 1,
+	MEDIUM = 2
+};
+
 class Core {
+	friend class GameObject;
+	friend class ScreenQuad;
 private:
 	HWND hwnd;
 	static Core* instance;
@@ -30,44 +40,63 @@ private:
 	ComPtr<ID3D12CommandAllocator> allocator;
 	ComPtr<ID3D12CommandQueue> queue;
 	ComPtr<ID3D12GraphicsCommandList> list;
-	
-	ComPtr<ID3D12PipelineState> plState;
-
-	ComPtr<ID3D12Resource> vertexBuffer;
-	D3D12_VERTEX_BUFFER_VIEW vertexBuffView;
 
 	UINT nNumBackBuffers;
 	ComPtr<ID3D12DescriptorHeap> rtvHeap;
 	std::vector<ComPtr<ID3D12Resource>> backBuffers;
+	std::vector<ComPtr<ID3D12Resource>> gbuffers;
+	UINT gbufferIndices[3];
 	UINT nRTVHeapIncrementSize;
 	UINT nCurrentBackBuffer;
-
-	ComPtr<ID3D12RootSignature> rootSig;
 
 	D3D12_VIEWPORT viewport;
 	D3D12_RECT scissorRect;
 	int width, height;
 
+	ComPtr<ID3D12DescriptorHeap> cbv_srvHeap;
+	UINT cbv_srvHeapIncrementSize;
+	UINT cbv_srvUsedDescriptors;
+
 	ComPtr<ID3D12Fence> fence;
 	HANDLE fenceEvent;
 	UINT nCurrentFence;
 
-	// Temporal
-	void InitPipeline();
-	void UploadBuffer();
-	void PopulateCommandList();
-	// End:Temporal
-
+	SceneManager* sceneMgr;
+	ScreenQuad* screenQuad;
+	
 	bool GetMostCapableAdapter(ComPtr<IDXGIAdapter>& adapter, ComPtr<IDXGIFactory2>& factory);
 	D3D_FEATURE_LEVEL GetMaxFeatureLevel(ComPtr<IDXGIAdapter>& adapter);
 
+	ComPtr<ID3D12Resource> zBuffer;
+	ComPtr<ID3D12DescriptorHeap> dsvHeap;
+
+	ComPtr<ID3D12DescriptorHeap> samplerHeap;
+	UINT nSamplerIncrementSize;
+	UINT nSamplerUsedDescriptors;
+
 	void WaitFrame();
+	void PopulateCommandList();
+
+	VSYNC vSyncState;
 public:
 	Core();
 	static Core* GetInstance();
 	void SetHWND(HWND& hwnd);
 	void GetHWND(HWND& hwnd);
 	void Init();
+
+
+	UINT CBV_SRV_AddDescriptorToCount();
+	UINT SAMPLER_AddDescriptorToCount();
+
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE type);
+	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHeapHandle(D3D12_DESCRIPTOR_HEAP_TYPE type);
+	UINT GetDescriptorHeapHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE type);
+
+	void GetDevice(ComPtr<ID3D12Device>& dev, ComPtr<ID3D12GraphicsCommandList>& list);
+
+
+	void GetWindowSize(int& width, int& height);
 	
 	void MainLoop();
 };
