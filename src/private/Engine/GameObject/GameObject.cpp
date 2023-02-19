@@ -234,7 +234,7 @@ void GameObject::InitPipeline() {
 	plDesc.RTVFormats[1] = DXGI_FORMAT_B8G8R8A8_UNORM;
 	plDesc.RTVFormats[2] = DXGI_FORMAT_B8G8R8A8_UNORM;
 	plDesc.NumRenderTargets = 3;
-	plDesc.SampleDesc.Count = 1;
+	plDesc.SampleDesc.Count = 8;
 	plDesc.SampleMask = UINT32_MAX;
 	plDesc.pRootSignature = this->rootSig.Get();
 	plDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
@@ -245,6 +245,7 @@ void GameObject::InitPipeline() {
 	plDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
 	ThrowIfFailed(this->core->dev->CreateGraphicsPipelineState(&plDesc, IID_PPV_ARGS(this->plState.GetAddressOf())));
+	this->plState->SetName(L"Mesh Pipeline");
 }
 
 void GameObject::UpdateConstantBuffers() {

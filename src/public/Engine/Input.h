@@ -15,6 +15,7 @@ enum MouseButton {
 };
 
 class Input {
+	friend class EditorCamera;
 private:
 	Input();
 	static Input* instance;
@@ -22,12 +23,23 @@ private:
 
 	std::map<char, InputState> keys;
 	std::map<MouseButton, InputState> mouseBtns;
+
+
+	int centerX, centerY;
+
+	bool bCursorClamped;
+
+	HCURSOR cursor;
+
+	float deltaX, deltaY;
 	
 public:
 	static Input* GetInstance();
 	void SetHWND(HWND& hwnd);
 	void Update(WPARAM wParam, LPARAM lParam);
 	char pressedKey;
+
+	void ClampCursor(bool bEnabled);
 
 	bool GetKey(char key, InputState state);
 	bool GetKeyUp(char key);

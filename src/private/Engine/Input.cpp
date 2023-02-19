@@ -4,6 +4,10 @@ Input* Input::instance;
 
 Input::Input() { 
 	this->hwnd = NULL;
+	this->bCursorClamped = false;
+	this->cursor = LoadCursor(NULL, IDC_ARROW);
+	this->deltaX = 0.f;
+	this->deltaY = 0.f;
 }
 
 void Input::SetHWND(HWND& hwnd) {
@@ -11,12 +15,57 @@ void Input::SetHWND(HWND& hwnd) {
 }
 
 void Input::Update(WPARAM wParam, LPARAM lParam) {
+	if (this->bCursorClamped) {
+		SetCursorPos(this->centerX, this->centerY);
+	}
+
 	BYTE keyBoardState[256];
 	bool bKeyboardState = GetKeyboardState(keyBoardState);
 	if (!bKeyboardState)
 		return;
 
 	ToAscii(wParam, lParam, keyBoardState, (LPWORD)&this->pressedKey, NULL);
+}
+
+void Input::ClampCursor(bool bEnabled) {
+	this->bCursorClamped = bEnabled;
+	if (this->bCursorClamped) {
+		RECT rect;
+		GetClientRect(this->hwnd, &rect);
+
+		POINT lt;
+		lt.x = rect.left;
+		lt.y = rect.top;
+
+		POINT rb;
+		rb.x = rect.right;
+		rb.y = rect.bottom;
+
+		MapWindowPoints(this->hwnd, nullptr, &lt, 1);
+		MapWindowPoints(this->hwnd, nullptr, &rb, 1);
+
+		rect.left = lt.x;
+		rect.right = rb.x;
+		rect.top = lt.y;
+		rect.bottom = rb.y;
+
+		int width = rect.right - rect.left;
+		int height = rect.bottom - rect.top;
+
+		this->centerX = width / 2;
+		this->centerY = height / 2;
+
+		ClipCursor(&rect);
+		SetCursor(NULL);
+		POINT cursorPos;
+		GetCursorPos(&cursorPos);
+		this->deltaX = this->centerX - cursorPos.x;
+		this->deltaY = this->centerY - cursorPos.y;
+	}
+	else {
+		ClipCursor(NULL);
+		SetCursor(this->cursor);
+	}
 }
 
 void Input::SetKey(char key, InputState state) {
@@ -99,6 +148,9 @@ void Input::RemoveReleased() {
 		for (MouseButton btn : toRemove)
 			this->mouseBtns.erase(btn);
 	}
+
+	this->deltaX = 0.f;
+	this->deltaY = 0.f;
 
 	return;
 }

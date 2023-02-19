@@ -52,6 +52,10 @@ private:
 	UINT samplerIncrementSize;
 	D3D12_CPU_DESCRIPTOR_HANDLE samplerHandle;
 
+	int width, height;
+
+	ComPtr<ID3D12Resource> gbuffers[3];
+
 	Shader* shader;
 
 	void InitPipeline();

@@ -11,6 +11,10 @@
 #include "Engine/Scene/SceneManager.h"
 #include "Engine/Vertex.h"
 #include "Engine/ScreenQuad.h"
+#include <imgui/imgui.h>
+#include <imgui/backends/imgui_impl_dx12.h>
+#include <imgui/backends/imgui_impl_win32.h>
+#include "Engine/Editor/Editor.h"
 
 using namespace Microsoft::WRL;
 
@@ -73,6 +77,8 @@ private:
 	ComPtr<ID3D12DescriptorHeap> samplerHeap;
 	UINT nSamplerIncrementSize;
 	UINT nSamplerUsedDescriptors;
+
+	Editor* editor;
 
 	void WaitFrame();
 	void PopulateCommandList();

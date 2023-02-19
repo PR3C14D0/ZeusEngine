@@ -23,6 +23,7 @@ void Core::InitD3D() {
 		ComPtr<ID3D12Debug1> debug;
 		ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(debug.GetAddressOf())));
 		debug->EnableDebugLayer();
+		debug->SetEnableGPUBasedValidation(true);
 	}
 #endif // NDEBUG
 
@@ -89,7 +90,7 @@ void Core::InitD3D() {
 	gBuffDesc.MipLevels = 1;
 	gBuffDesc.Height = this->height;
 	gBuffDesc.Width = this->width;
-	gBuffDesc.SampleDesc.Count = 1;
+	gBuffDesc.SampleDesc.Count = 8;
 	gBuffDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 	gBuffDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	gBuffDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -97,7 +98,7 @@ void Core::InitD3D() {
 	D3D12_HEAP_PROPERTIES gBuffProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 
 	D3D12_RENDER_TARGET_VIEW_DESC grtvDesc = { };
-	grtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	grtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMS;
 	grtvDesc.Format = gBuffDesc.Format;
 
 	D3D12_CLEAR_VALUE gbuffClear = { };
@@ -153,7 +154,7 @@ void Core::InitD3D() {
 	D3D12_RESOURCE_DESC dsvTexDesc = { };
 	dsvTexDesc.DepthOrArraySize = 1;
 	dsvTexDesc.MipLevels = 1;
-	dsvTexDesc.SampleDesc.Count = 1;
+	dsvTexDesc.SampleDesc.Count = 8;
 	dsvTexDesc.Height = this->height;
 	dsvTexDesc.Width = this->width;
 	dsvTexDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
@@ -181,7 +182,7 @@ void Core::InitD3D() {
 
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = { };
 	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DMS;
 	dsvDesc.Format = dsvTexDesc.Format;
 
 	this->dev->CreateDepthStencilView(this->zBuffer.Get(), &dsvDesc, this->dsvHeap->GetCPUDescriptorHandleForHeapStart());
@@ -201,12 +202,24 @@ void Core::InitD3D() {
 
 	this->sceneMgr = SceneManager::GetInstance();
 	this->screenQuad = new ScreenQuad();
+	this->vSyncState = ENABLED;
 
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+	UINT imguiIndex = this->CBV_SRV_AddDescriptorToCount();
+	D3D12_CPU_DESCRIPTOR_HANDLE imguiCPUHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(this->cbv_srvHeap->GetCPUDescriptorHandleForHeapStart(), imguiIndex, this->cbv_srvHeapIncrementSize);
+	D3D12_GPU_DESCRIPTOR_HANDLE imguiGPUHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(this->cbv_srvHeap->GetGPUDescriptorHandleForHeapStart(), imguiIndex, this->cbv_srvHeapIncrementSize);
+
+	ImGui_ImplDX12_Init(this->dev.Get(), 2, DXGI_FORMAT_B8G8R8A8_UNORM, this->cbv_srvHeap.Get(), imguiCPUHandle, imguiGPUHandle);
+	ImGui_ImplWin32_Init(this->hwnd);
+
+	this->editor = Editor::GetInstance();
+	
 	this->nCurrentFence = 1;
 	ThrowIfFailed(this->dev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(this->fence.GetAddressOf())));
 	this->fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-	
-	this->vSyncState = ENABLED;
 
 	this->WaitFrame();
 }
@@ -281,6 +294,16 @@ void Core::PopulateCommandList() {
 	this->list->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 	this->list->ClearRenderTargetView(rtvHandle, RGBA{ 0.f, 0.f, 0.f, 1.f }, 0, nullptr);
 	this->screenQuad->Render();
+
+	ImGui_ImplWin32_NewFrame();
+	ImGui_ImplDX12_NewFrame();
+	ImGui::NewFrame(); 
+
+	this->editor->Render();
+
+	ImGui::Render();
+	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), this->list.Get());
+	
 	resBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	this->list->ResourceBarrier(1, &resBarrier);
 	ThrowIfFailed(this->list->Close());
