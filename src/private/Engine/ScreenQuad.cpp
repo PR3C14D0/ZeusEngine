@@ -5,10 +5,10 @@ ScreenQuad::ScreenQuad() {
 	this->core = Core::GetInstance();
 	
 	ScreenQuadVertex vertices[] = {
-		{{-1.f, 1.f, 0.f}, {0.f, 0.f}},
-		{{1.f, 1.f, 0.f}, {1.f, 0.f}},
-		{{1.f, -1.f, 0.f}, {1.f, 1.f}},
-		{{-1.f, -1.f, 0.f}, {0.f, 1.f}},
+		{-1.f, 1.f, 0.f},
+		{1.f, 1.f, 0.f},
+		{1.f, -1.f, 0.f},
+		{-1.f, -1.f, 0.f},
 	};
 
 	UINT verticesSize = sizeof(vertices);
@@ -89,61 +89,37 @@ ScreenQuad::ScreenQuad() {
 	this->depthCPUHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(this->cbv_srvCPUHandle, this->depthIndex, this->cbv_srvIncrementSize);
 	this->posCPUHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(this->cbv_srvCPUHandle, this->posIndex, this->cbv_srvIncrementSize);
 
-	D3D12_RESOURCE_DESC gbuffersDesc = { };
-	gbuffersDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	gbuffersDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	gbuffersDesc.Width = this->width;
-	gbuffersDesc.Height = this->height;
-	gbuffersDesc.SampleDesc.Count = 1;
-	gbuffersDesc.DepthOrArraySize = 1;
-	gbuffersDesc.MipLevels = 1;
-	gbuffersDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-	D3D12_HEAP_PROPERTIES gbuffProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-	
-	for (int i = 0; i < _countof(this->gbuffers); i++) {
-		ThrowIfFailed(this->core->dev->CreateCommittedResource(
-			&gbuffProps,
-			D3D12_HEAP_FLAG_NONE,
-			&gbuffersDesc,
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			nullptr,
-			IID_PPV_ARGS(this->gbuffers[i].GetAddressOf())
-		));
-	}
-
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = { };
 	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMS;
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Texture2D.MipLevels = 1;
 	
 	this->core->dev->CreateShaderResourceView(
-		this->gbuffers[0].Get(),
+		this->core->gbuffers[0].Get(),
 		&srvDesc,
 		this->albedoCPUHandle
 	);
 
 	this->core->dev->CreateShaderResourceView(
-		this->gbuffers[1].Get(),
+		this->core->gbuffers[1].Get(),
 		&srvDesc,
 		this->normalCPUHandle
 	);
 
 	this->core->dev->CreateShaderResourceView(
-		this->gbuffers[2].Get(),
+		this->core->gbuffers[2].Get(),
 		&srvDesc,
 		this->posCPUHandle
 	);
 
 	srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
 
-	/*this->core->dev->CreateShaderResourceView(
+	this->core->dev->CreateShaderResourceView(
 		this->core->zBuffer.Get(),
 		&srvDesc,
 		this->depthCPUHandle
 	);
-	*/
 
 	D3D12_SAMPLER_DESC samplerDesc = { };
 	samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -216,8 +192,7 @@ void ScreenQuad::InitPipeline() {
 	ThrowIfFailed(this->core->dev->CreateRootSignature(0, rsBlob->GetBufferPointer(), rsBlob->GetBufferSize(), IID_PPV_ARGS(this->rootSig.GetAddressOf())));
 
 	D3D12_INPUT_ELEMENT_DESC elements[] = {
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, NULL},
-		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, NULL},
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, NULL}
 	};
 
 	D3D12_INPUT_LAYOUT_DESC layout = { };
@@ -238,7 +213,7 @@ void ScreenQuad::InitPipeline() {
 	plDesc.DepthStencilState.StencilEnable = FALSE;
 	plDesc.InputLayout = layout;
 	plDesc.pRootSignature = this->rootSig.Get();
-	plDesc.SampleDesc.Count = 1;
+	plDesc.SampleDesc.Count = 8;
 	plDesc.SampleMask = UINT32_MAX;
 	plDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	plDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
@@ -249,38 +224,12 @@ void ScreenQuad::InitPipeline() {
 
 void ScreenQuad::Render() {
 	std::vector<D3D12_RESOURCE_BARRIER> barriers;
-	for (ComPtr<ID3D12Resource> buffer : this->gbuffers) {
-		D3D12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(buffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RESOLVE_DEST);
-		barriers.push_back(resourceBarrier);
-	}
-
 	for (ComPtr<ID3D12Resource> buffer : this->core->gbuffers) {
-		D3D12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(buffer.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+		D3D12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(buffer.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		barriers.push_back(resourceBarrier);
 	}
 
 	D3D12_RESOURCE_BARRIER depthBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->core->zBuffer.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	barriers.push_back(depthBarrier);
-
-	this->core->list->ResourceBarrier(barriers.size(), barriers.data());
-
-	for (int i = 0; i < _countof(this->gbuffers); i++) {
-		this->core->list->ResolveSubresource(this->gbuffers[i].Get(), 0, this->core->gbuffers[i].Get(), 0, DXGI_FORMAT_B8G8R8A8_UNORM);
-	}
-
-	barriers.clear();
-
-	for (ComPtr<ID3D12Resource> buffer : this->gbuffers) {
-		D3D12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(buffer.Get(), D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		barriers.push_back(resourceBarrier);
-	}
-
-	for (ComPtr<ID3D12Resource> buffer : this->core->gbuffers) {
-		D3D12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(buffer.Get(), D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		barriers.push_back(resourceBarrier);
-	}
-
-	depthBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->core->zBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 	barriers.push_back(depthBarrier);
 
 	this->core->list->ResourceBarrier(barriers.size(), barriers.data());
@@ -310,6 +259,17 @@ void ScreenQuad::Render() {
 	this->core->list->SetGraphicsRootDescriptorTable(4, this->posGPUHandle);
 	
 	this->core->list->DrawIndexedInstanced(6, 1, 0, 0, 0);
+
+	barriers.clear();
+
+	for (ComPtr<ID3D12Resource> buffer : this->core->gbuffers) {
+		D3D12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(buffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		barriers.push_back(resourceBarrier);
+	}
+
+	depthBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->core->zBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	barriers.push_back(depthBarrier);
+	this->core->list->ResourceBarrier(barriers.size(), barriers.data());
 
 	return;
 }

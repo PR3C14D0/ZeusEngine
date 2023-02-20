@@ -54,8 +54,6 @@ private:
 
 	int width, height;
 
-	ComPtr<ID3D12Resource> gbuffers[3];
-
 	Shader* shader;
 
 	void InitPipeline();

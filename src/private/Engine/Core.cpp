@@ -8,6 +8,7 @@ Core::Core() {
 	this->nNumBackBuffers = 2;
 	this->cbv_srvUsedDescriptors = 0;
 	this->nSamplerUsedDescriptors = 0;
+	this->sampleCount = 8;
 }
 
 /*
@@ -63,7 +64,7 @@ void Core::InitD3D() {
 
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = { };
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	rtvHeapDesc.NumDescriptors = this->nNumBackBuffers + 3;
+	rtvHeapDesc.NumDescriptors = this->nNumBackBuffers + 4;
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
 	ThrowIfFailed(this->dev->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(this->rtvHeap.GetAddressOf())));
@@ -122,6 +123,39 @@ void Core::InitD3D() {
 		rtvHandle.Offset(1, this->nRTVHeapIncrementSize);
 	}
 
+	D3D12_RESOURCE_DESC sqDesc = { };
+	sqDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	sqDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	sqDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	sqDesc.MipLevels = 1;
+	sqDesc.DepthOrArraySize = 1;
+	sqDesc.SampleDesc.Count = 8;
+	sqDesc.Width = this->width;
+	sqDesc.Height = this->height;
+
+	D3D12_HEAP_PROPERTIES sqProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+	D3D12_RENDER_TARGET_VIEW_DESC sqRTVDesc = { };
+	sqRTVDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMS;
+	sqRTVDesc.Format = sqDesc.Format;
+
+	ThrowIfFailed(
+		this->dev->CreateCommittedResource(
+			&sqProps,
+			D3D12_HEAP_FLAG_NONE,
+			&sqDesc,
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			&gbuffClear,
+			IID_PPV_ARGS(this->screenQuadBuff.GetAddressOf())
+		)
+	);
+
+	this->sqBuffIndex = this->nNumBackBuffers + _countof(this->gbufferIndices);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE sqHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->sqBuffIndex, this->nRTVHeapIncrementSize);
+
+	this->dev->CreateRenderTargetView(this->screenQuadBuff.Get(), &sqRTVDesc, sqHandle);
+
 	ThrowIfFailed(this->dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, this->allocator.Get(), nullptr, IID_PPV_ARGS(this->list.GetAddressOf())));
 
 	ThrowIfFailed(this->list->Close());
@@ -140,7 +174,6 @@ void Core::InitD3D() {
 	cbvSrvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	cbvSrvHeapDesc.NumDescriptors = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1;
 	cbvSrvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-
 
 	ThrowIfFailed(this->dev->CreateDescriptorHeap(&cbvSrvHeapDesc, IID_PPV_ARGS(this->cbv_srvHeap.GetAddressOf())));
 	this->cbv_srvHeapIncrementSize = this->dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -167,7 +200,6 @@ void Core::InitD3D() {
 	dsvClear.DepthStencil.Depth = 1.f;
 	dsvClear.DepthStencil.Stencil = 1.f;
 	dsvClear.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-
 
 	ThrowIfFailed(
 		this->dev->CreateCommittedResource(
@@ -264,12 +296,11 @@ void Core::PopulateCommandList() {
 	ThrowIfFailed(this->allocator->Reset());
 	ThrowIfFailed(this->list->Reset(this->allocator.Get(), nullptr));
 
-	D3D12_RESOURCE_BARRIER resBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	this->list->ResourceBarrier(1, &resBarrier);
 	
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->nCurrentBackBuffer, this->nRTVHeapIncrementSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE sqHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->sqBuffIndex, this->nRTVHeapIncrementSize);
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(this->dsvHeap->GetCPUDescriptorHandleForHeapStart());
-		
+
 	std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> gbufferHandles;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE albedoHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->gbufferIndices[0], this->nRTVHeapIncrementSize);
 	CD3DX12_CPU_DESCRIPTOR_HANDLE normalHandle(this->rtvHeap->GetCPUDescriptorHandleForHeapStart(), this->gbufferIndices[1], this->nRTVHeapIncrementSize);
@@ -291,10 +322,33 @@ void Core::PopulateCommandList() {
 
 	this->sceneMgr->Render();
 
-	this->list->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-	this->list->ClearRenderTargetView(rtvHandle, RGBA{ 0.f, 0.f, 0.f, 1.f }, 0, nullptr);
-	this->screenQuad->Render();
 
+	this->list->OMSetRenderTargets(1, &sqHandle, FALSE, nullptr);
+	this->list->ClearRenderTargetView(sqHandle, RGBA{ 0.f, 0.f, 0.f, 1.f }, 0, nullptr);
+	this->screenQuad->Render();
+	
+	std::vector<D3D12_RESOURCE_BARRIER> barriers;
+
+	D3D12_RESOURCE_BARRIER backBufferBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST);
+	D3D12_RESOURCE_BARRIER sqBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->screenQuadBuff.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+	barriers.push_back(backBufferBarrier);
+	barriers.push_back(sqBarrier);
+
+	this->list->ResourceBarrier(barriers.size(), barriers.data());
+
+	this->list->ResolveSubresource(this->backBuffers[this->nCurrentBackBuffer].Get(), 0, this->screenQuadBuff.Get(), 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+
+	sqBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->screenQuadBuff.Get(), D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	backBufferBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	
+	barriers.clear();
+	
+	barriers.push_back(backBufferBarrier);
+	barriers.push_back(sqBarrier);
+
+	this->list->ResourceBarrier(barriers.size(), barriers.data());
+
+	this->list->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 	ImGui_ImplWin32_NewFrame();
 	ImGui_ImplDX12_NewFrame();
 	ImGui::NewFrame(); 
@@ -303,9 +357,13 @@ void Core::PopulateCommandList() {
 
 	ImGui::Render();
 	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), this->list.Get());
-	
-	resBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-	this->list->ResourceBarrier(1, &resBarrier);
+
+	backBufferBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	barriers.clear();
+	barriers.push_back(backBufferBarrier);
+
+	this->list->ResourceBarrier(barriers.size(), barriers.data());
+
 	ThrowIfFailed(this->list->Close());
 }
 

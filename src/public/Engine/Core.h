@@ -49,7 +49,9 @@ private:
 	ComPtr<ID3D12DescriptorHeap> rtvHeap;
 	std::vector<ComPtr<ID3D12Resource>> backBuffers;
 	std::vector<ComPtr<ID3D12Resource>> gbuffers;
+	ComPtr<ID3D12Resource> screenQuadBuff;
 	UINT gbufferIndices[3];
+	UINT sqBuffIndex;
 	UINT nRTVHeapIncrementSize;
 	UINT nCurrentBackBuffer;
 
@@ -82,6 +84,8 @@ private:
 
 	void WaitFrame();
 	void PopulateCommandList();
+
+	UINT sampleCount; // Change sample count
 
 	VSYNC vSyncState;
 public:
