@@ -15,10 +15,6 @@ void Input::SetHWND(HWND& hwnd) {
 }
 
 void Input::Update(WPARAM wParam, LPARAM lParam) {
-	if (this->bCursorClamped) {
-		SetCursorPos(this->centerX, this->centerY);
-	}
-
 	BYTE keyBoardState[256];
 	bool bKeyboardState = GetKeyboardState(keyBoardState);
 	if (!bKeyboardState)
@@ -65,6 +61,9 @@ void Input::ClampCursor(bool bEnabled) {
 	else {
 		ClipCursor(NULL);
 		SetCursor(this->cursor);
+	}
+	if (this->bCursorClamped) {
+		SetCursorPos(this->centerX, this->centerY);
 	}
 }
 

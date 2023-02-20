@@ -27,3 +27,23 @@ void Transform::rotate(float x, float y, float z) {
 	this->rotate(vec);
 	return;
 }
+
+Vector3 Transform::forward() {
+	return this->rotatePoint({ 0.f, 0.f, 1.f });
+}
+
+Vector3 Transform::right() {
+	return this->rotatePoint({ 1.f, 0.f, 0.f });
+}
+
+Vector3 Transform::rotatePoint(Vector3 v) {
+	XMMATRIX rot = XMMatrixTranspose(XMMatrixIdentity());
+	rot *= XMMatrixTranspose(XMMatrixRotationX(XMConvertToRadians(this->rotation.x)));
+	rot *= XMMatrixTranspose(XMMatrixRotationY(XMConvertToRadians(this->rotation.y)));
+	rot *= XMMatrixTranspose(XMMatrixRotationZ(XMConvertToRadians(this->rotation.z)));
+
+	XMVECTOR vec = XMVector4Transform(XMVectorSet(v.x, v.y, v.z, 1.f), rot);
+	XMFLOAT4 rotated;
+	XMStoreFloat4(&rotated, vec);
+	return Vector3(rotated.x, rotated.y, rotated.z);
+}
