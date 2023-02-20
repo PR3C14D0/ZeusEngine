@@ -352,6 +352,7 @@ void Core::PopulateCommandList() {
 	ImGui_ImplWin32_NewFrame();
 	ImGui_ImplDX12_NewFrame();
 	ImGui::NewFrame(); 
+	ImGuizmo::BeginFrame();
 
 	this->editor->Render();
 

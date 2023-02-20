@@ -16,6 +16,7 @@ set(GLOBAL_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 set(ASSIMP_LIB "${CMAKE_CURRENT_SOURCE_DIR}/../lib/assimp/assimp.lib")
 
 set(IMGUI_DIR "${GLOBAL_INCLUDES}/imgui")
+set(IMGUIZMO_DIR "${GLOBAL_INCLUDES}/imguizmo")
 
 file(GLOB "IMGUI_FILES" 
 	"${IMGUI_DIR}/imgui.cpp"
@@ -26,12 +27,19 @@ file(GLOB "IMGUI_FILES"
 	"${IMGUI_DIR}/backends/imgui_impl_win32.cpp"
 )
 
+file(GLOB "IMGUIZMO_FILES"
+	"${IMGUIZMO_DIR}/*.cpp"
+	"${IMGUIZMO_DIR}/*.h"
+)
+
 add_compile_definitions(NOMINMAX)
 
 add_library("ImGUI" "${IMGUI_FILES}")
+add_library("imguizmo" "${IMGUIZMO_FILES}")
 
 target_link_libraries(ZeusEngine "${DX_LIB}")
 target_link_libraries(ZeusEngine "${ASSIMP_LIB}")
 target_link_libraries(ZeusEngine ImGUI)
+target_link_libraries(ZeusEngine imguizmo)
 include_directories("${SOURCE_INCLUDES}")
 include_directories("${GLOBAL_INCLUDES}")
