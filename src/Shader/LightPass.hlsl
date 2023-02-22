@@ -1,13 +1,12 @@
 struct VertexOutput
 {
     float4 position : SV_Position;
-    float2 uv : TEXCOORD0;
 };
 
-Texture2D albedo : register(t0);
-Texture2D normal : register(t1);
-Texture2D depthTex : register(t2);
-Texture2D posTex : register(t3);
+Texture2DMS<float4> albedo : register(t0);
+Texture2DMS<float4> normal : register(t1);
+Texture2DMS<float4> depthTex : register(t2);
+Texture2DMS<float4> posTex : register(t3);
 
 SamplerState sState : register(s0);
 
@@ -18,21 +17,21 @@ cbuffer WVP : register(b0)
     matrix Projection;
 }
 
-VertexOutput VertexMain(float4 position : POSITION, float2 uv : TEXCOORD)
+VertexOutput VertexMain(float4 position : POSITION)
 {
     VertexOutput output;
     output.position = position;
-    output.uv = uv;
     return output;
 }
 
-float4 PixelMain(VertexOutput input) : SV_Target {
+float4 PixelMain(VertexOutput input, uint sampleIndex : SV_SampleIndex) : SV_Target
+{
     float4 finalColor;
     
-    float4 albedoColor =  albedo.Sample(sState, input.uv);
-    float4 nml = normalize(normal.Sample(sState, input.uv) * 2 - float4(1.f, 1.f, 1.f, 1.f));
-    float4 position = posTex.Sample(sState, input.uv);
-    float depth = depthTex.Sample(sState, input.uv).x;
+    float4 albedoColor =  albedo.Load(input.position.xy, sampleIndex);
+    float4 nml = normalize(normal.Load(input.position.xy, sampleIndex) * 2 - float4(1.f, 1.f, 1.f, 1.f));
+    float4 position = posTex.Load(input.position.xy, sampleIndex);
+    float depth = depthTex.Load(input.position.xy, sampleIndex).x;
     
     float4 lightPos = float4(0.f, 1.f, -1.f, 1.f);
     float4 lightDir = normalize(lightPos - position);

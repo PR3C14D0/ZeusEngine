@@ -52,6 +52,8 @@ private:
 	UINT samplerIncrementSize;
 	D3D12_CPU_DESCRIPTOR_HANDLE samplerHandle;
 
+	int width, height;
+
 	Shader* shader;
 
 	void InitPipeline();

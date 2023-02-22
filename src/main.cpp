@@ -1,12 +1,15 @@
 #include <Windows.h>
+#include <time.h>
 #include "Engine/Core.h"
 #include "Engine/Input.h"
+#include "Module/Time.h"
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 bool g_quit = false;
 Core* g_core = Core::GetInstance();
 Input* g_input = Input::GetInstance();
+Time* g_time = Time::GetInstance();
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
 	const char CLASS_NAME[] = "ZeusEngine";
@@ -40,21 +43,33 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	g_core->Init();
 	g_input->SetHWND(hwnd);
 
+	clock_t startTime = clock();
+	float deltaTime = 0.f;
+	clock_t endTime;
+
 	MSG msg = { };
 	while (!g_quit) {
+		g_input->RemoveReleased();
 		while (PeekMessage(&msg, NULL, NULL, NULL, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
 		g_core->MainLoop();
-		g_input->RemoveReleased();
+		endTime = clock();
+		deltaTime = endTime - startTime;
+		startTime = endTime;
+		g_time->SetDelta(deltaTime / 1000.f);
 	}
 	
 	return 0;
 }
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam))
+		return 0;
+
 	g_input->Update(wParam, lParam);
 	char pressedKey;
 

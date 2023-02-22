@@ -12,5 +12,4 @@ struct vertex {
 
 struct ScreenQuadVertex {
 	POSITION pos;
-	UV uv;
 };

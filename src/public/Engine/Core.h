@@ -11,6 +11,11 @@
 #include "Engine/Scene/SceneManager.h"
 #include "Engine/Vertex.h"
 #include "Engine/ScreenQuad.h"
+#include <imgui/imgui.h>
+#include <imgui/backends/imgui_impl_dx12.h>
+#include <imgui/backends/imgui_impl_win32.h>
+#include <imguizmo/ImGuizmo.h>
+#include "Engine/Editor/Editor.h"
 
 using namespace Microsoft::WRL;
 
@@ -21,6 +26,7 @@ enum VSYNC {
 };
 
 class Core {
+	friend class Editor;
 	friend class GameObject;
 	friend class ScreenQuad;
 private:
@@ -45,7 +51,9 @@ private:
 	ComPtr<ID3D12DescriptorHeap> rtvHeap;
 	std::vector<ComPtr<ID3D12Resource>> backBuffers;
 	std::vector<ComPtr<ID3D12Resource>> gbuffers;
+	ComPtr<ID3D12Resource> screenQuadBuff;
 	UINT gbufferIndices[3];
+	UINT sqBuffIndex;
 	UINT nRTVHeapIncrementSize;
 	UINT nCurrentBackBuffer;
 
@@ -74,8 +82,14 @@ private:
 	UINT nSamplerIncrementSize;
 	UINT nSamplerUsedDescriptors;
 
+	Editor* editor;
+
 	void WaitFrame();
 	void PopulateCommandList();
+
+	ImGuiIO* imIO;
+
+	UINT sampleCount; // Change sample count
 
 	VSYNC vSyncState;
 public:
@@ -95,6 +109,7 @@ public:
 
 	void GetDevice(ComPtr<ID3D12Device>& dev, ComPtr<ID3D12GraphicsCommandList>& list);
 
+	void SetVSYNC(VSYNC state);
 
 	void GetWindowSize(int& width, int& height);
 	

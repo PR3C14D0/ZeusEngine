@@ -5,10 +5,10 @@ ScreenQuad::ScreenQuad() {
 	this->core = Core::GetInstance();
 	
 	ScreenQuadVertex vertices[] = {
-		{{-1.f, 1.f, 0.f}, {0.f, 0.f}},
-		{{1.f, 1.f, 0.f}, {1.f, 0.f}},
-		{{1.f, -1.f, 0.f}, {1.f, 1.f}},
-		{{-1.f, -1.f, 0.f}, {0.f, 1.f}},
+		{-1.f, 1.f, 0.f},
+		{1.f, 1.f, 0.f},
+		{1.f, -1.f, 0.f},
+		{-1.f, -1.f, 0.f},
 	};
 
 	UINT verticesSize = sizeof(vertices);
@@ -17,6 +17,8 @@ ScreenQuad::ScreenQuad() {
 		0, 1, 3,
 		3, 1, 2
 	};
+
+	this->core->GetWindowSize(this->width, this->height);
 
 	UINT indicesSize = sizeof(indices);
 
@@ -89,7 +91,7 @@ ScreenQuad::ScreenQuad() {
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = { };
 	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMS;
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Texture2D.MipLevels = 1;
 	
@@ -190,8 +192,7 @@ void ScreenQuad::InitPipeline() {
 	ThrowIfFailed(this->core->dev->CreateRootSignature(0, rsBlob->GetBufferPointer(), rsBlob->GetBufferSize(), IID_PPV_ARGS(this->rootSig.GetAddressOf())));
 
 	D3D12_INPUT_ELEMENT_DESC elements[] = {
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, NULL},
-		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, NULL},
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, NULL}
 	};
 
 	D3D12_INPUT_LAYOUT_DESC layout = { };
@@ -212,12 +213,13 @@ void ScreenQuad::InitPipeline() {
 	plDesc.DepthStencilState.StencilEnable = FALSE;
 	plDesc.InputLayout = layout;
 	plDesc.pRootSignature = this->rootSig.Get();
-	plDesc.SampleDesc.Count = 1;
+	plDesc.SampleDesc.Count = 8;
 	plDesc.SampleMask = UINT32_MAX;
 	plDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	plDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
 	ThrowIfFailed(this->core->dev->CreateGraphicsPipelineState(&plDesc, IID_PPV_ARGS(this->plState.GetAddressOf())));
+	this->plState->SetName(L"ScreenQuad Pipeline");
 }
 
 void ScreenQuad::Render() {
@@ -231,6 +233,7 @@ void ScreenQuad::Render() {
 	barriers.push_back(depthBarrier);
 
 	this->core->list->ResourceBarrier(barriers.size(), barriers.data());
+
 	this->core->list->IASetVertexBuffers(0, 1, &this->vbView);
 	this->core->list->SetGraphicsRootSignature(this->rootSig.Get());
 	this->core->list->SetPipelineState(this->plState.Get());
@@ -258,6 +261,7 @@ void ScreenQuad::Render() {
 	this->core->list->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
 	barriers.clear();
+
 	for (ComPtr<ID3D12Resource> buffer : this->core->gbuffers) {
 		D3D12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(buffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		barriers.push_back(resourceBarrier);
@@ -265,7 +269,7 @@ void ScreenQuad::Render() {
 
 	depthBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->core->zBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 	barriers.push_back(depthBarrier);
-
 	this->core->list->ResourceBarrier(barriers.size(), barriers.data());
+
 	return;
 }
