@@ -9,6 +9,7 @@ Core::Core() {
 	this->cbv_srvUsedDescriptors = 0;
 	this->nSamplerUsedDescriptors = 0;
 	this->sampleCount = 8;
+	this->imIO = nullptr;
 }
 
 /*
@@ -238,13 +239,13 @@ void Core::InitD3D() {
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	this->imIO = &ImGui::GetIO(); (void*)this->imIO;
 
 	UINT imguiIndex = this->CBV_SRV_AddDescriptorToCount();
 	D3D12_CPU_DESCRIPTOR_HANDLE imguiCPUHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(this->cbv_srvHeap->GetCPUDescriptorHandleForHeapStart(), imguiIndex, this->cbv_srvHeapIncrementSize);
 	D3D12_GPU_DESCRIPTOR_HANDLE imguiGPUHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(this->cbv_srvHeap->GetGPUDescriptorHandleForHeapStart(), imguiIndex, this->cbv_srvHeapIncrementSize);
 
-	ImGui_ImplDX12_Init(this->dev.Get(), 2, DXGI_FORMAT_B8G8R8A8_UNORM, this->cbv_srvHeap.Get(), imguiCPUHandle, imguiGPUHandle);
+	ImGui_ImplDX12_Init(this->dev.Get(), 1, DXGI_FORMAT_B8G8R8A8_UNORM, this->cbv_srvHeap.Get(), imguiCPUHandle, imguiGPUHandle);
 	ImGui_ImplWin32_Init(this->hwnd);
 
 	this->editor = Editor::GetInstance();
@@ -322,7 +323,6 @@ void Core::PopulateCommandList() {
 
 	this->sceneMgr->Render();
 
-
 	this->list->OMSetRenderTargets(1, &sqHandle, FALSE, nullptr);
 	this->list->ClearRenderTargetView(sqHandle, RGBA{ 0.f, 0.f, 0.f, 1.f }, 0, nullptr);
 	this->screenQuad->Render();
@@ -347,17 +347,28 @@ void Core::PopulateCommandList() {
 	barriers.push_back(sqBarrier);
 
 	this->list->ResourceBarrier(barriers.size(), barriers.data());
-
 	this->list->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+
 	ImGui_ImplWin32_NewFrame();
+	this->imIO->DisplaySize = ImVec2(this->width, this->height);
+	ImGuiViewport* imVp = ImGui::GetMainViewport();
+	imVp->Flags = ImGuiViewportFlags_IsPlatformWindow;
+	ImVec2 imCenter = imVp->GetCenter();
 	ImGui_ImplDX12_NewFrame();
+	
 	ImGui::NewFrame(); 
-	ImGuizmo::BeginFrame();
+	//ImGuizmo::BeginFrame();
 
 	this->editor->Render();
 
 	ImGui::Render();
-	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), this->list.Get());
+
+	ImDrawData* drawData = ImGui::GetDrawData();
+	drawData->DisplaySize = imVp->Size;
+	drawData->DisplayPos = imVp->Pos;
+	
+	ImGui_ImplDX12_RenderDrawData(drawData, this->list.Get());
 
 	backBufferBarrier = CD3DX12_RESOURCE_BARRIER::Transition(this->backBuffers[this->nCurrentBackBuffer].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	barriers.clear();
@@ -366,6 +377,13 @@ void Core::PopulateCommandList() {
 	this->list->ResourceBarrier(barriers.size(), barriers.data());
 
 	ThrowIfFailed(this->list->Close());
+}
+
+/*
+	This method will set our VSYNC state
+*/
+void Core::SetVSYNC(VSYNC state) {
+	this->vSyncState = state;
 }
 
 /*

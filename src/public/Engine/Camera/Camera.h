@@ -10,7 +10,7 @@ class Camera : public GameObject{
 private:
 	std::string name;
 	WVP transformMatrix;
-
+	
 	Core* core;
 
 	int width, height;

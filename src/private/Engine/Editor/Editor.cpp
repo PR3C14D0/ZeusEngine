@@ -1,9 +1,13 @@
 #include "Engine/Editor/Editor.h"
+#include "Engine/Core.h"
 
 Editor* Editor::instance;
 
 Editor::Editor() {
 	this->time = Time::GetInstance();
+	this->core = Core::GetInstance();
+	this->sceneMgr = this->core->sceneMgr;
+	this->vsyncState = this->core->vSyncState;
 }
 
 void Editor::RenderMenu() {
@@ -14,7 +18,7 @@ void Editor::RenderMenu() {
 
 void Editor::PerformanceMenu() {
 	ImGui::Begin("Performance");
-	ImGui::Text(("FPS: " + std::to_string((int)(1.f / (this->time->deltaTime / 1000.f)))).c_str());
+	ImGui::Text(("FPS: " + std::to_string((int)(1.f / this->time->deltaTime))).c_str());
 	ImGui::End();
 }
 
@@ -100,6 +104,21 @@ void Editor::Render() {
 
 	this->RenderMenu();
 	this->PerformanceMenu();
+	this->SettingsMenu();
+}
+
+void Editor::SettingsMenu() {
+	const char* items[] = {
+		"Disabled (Only fullscreen)",
+		"Enabled",
+		"Medium",
+	};
+	ImGui::Begin("Settings (Preview)");
+	ImGui::ListBox("VSYNC", (int*)&this->vsyncState, items, _countof(items));
+	ImGui::End();
+
+	if (this->vsyncState != this->core->vSyncState)
+		this->core->SetVSYNC(this->vsyncState);
 }
 
 Editor* Editor::GetInstance() {

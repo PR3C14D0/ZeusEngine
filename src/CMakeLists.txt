@@ -3,7 +3,7 @@
 #
 
 # Agregue un origen al ejecutable de este proyecto.
-add_executable (ZeusEngine "main.cpp" "public/Engine/Core.h" "private/Engine/Core.cpp" "public/Util/Util.h" "public/Engine/Shader.h" "private/Engine/Shader.cpp" "public/Engine/Vertex.h" "public/Engine/GameObject/GameObject.h" "private/Engine/GameObject/GameObject.cpp" "public/Math/Vector3.h" "private/Math/Vector3.cpp"  "public/Math/Transform.h" "private/Math/Transform.cpp" "public/Engine/Scene/SceneManager.h" "private/Engine/Scene/SceneManager.cpp" "public/Engine/Scene/Scene.h" "private/Engine/Scene/Scene.cpp" "public/Engine/WVP.h"  "public/Engine/ScreenQuad.h" "private/Engine/ScreenQuad.cpp" "public/Engine/Camera/Camera.h" "private/Engine/Camera/Camera.cpp" "public/Engine/Input.h" "private/Engine/Input.cpp" "private/Engine/Camera/EditorCamera.cpp" "public/Engine/Camera/EditorCamera.h"  "private/Engine/Editor/Editor.cpp" "public/Engine/Editor/Editor.h" "public/Module/Time.h" "private/Module/Time.cpp")
+add_executable (ZeusEngine "main.cpp" "public/Engine/Core.h" "private/Engine/Core.cpp" "public/Util/Util.h" "public/Engine/Shader.h" "private/Engine/Shader.cpp" "public/Engine/Vertex.h" "public/Engine/GameObject/GameObject.h" "private/Engine/GameObject/GameObject.cpp" "public/Math/Vector3.h" "private/Math/Vector3.cpp"  "public/Math/Transform.h" "private/Math/Transform.cpp" "public/Engine/Scene/SceneManager.h" "private/Engine/Scene/SceneManager.cpp" "public/Engine/Scene/Scene.h" "private/Engine/Scene/Scene.cpp" "public/Engine/WVP.h"  "public/Engine/ScreenQuad.h" "private/Engine/ScreenQuad.cpp" "public/Engine/Camera/Camera.h" "private/Engine/Camera/Camera.cpp" "public/Engine/Input.h" "private/Engine/Input.cpp" "private/Engine/Camera/EditorCamera.cpp" "public/Engine/Camera/EditorCamera.h"  "private/Engine/Editor/Editor.cpp" "public/Engine/Editor/Editor.h" "public/Module/Time.h" "private/Module/Time.cpp" "public/Engine/ResourceManager.h" "private/Engine/ResourceManager.cpp")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET ZeusEngine PROPERTY CXX_STANDARD 20)
@@ -33,6 +33,7 @@ file(GLOB "IMGUIZMO_FILES"
 )
 
 add_compile_definitions(NOMINMAX)
+add_definitions(-Zm2000)
 
 add_library("ImGUI" "${IMGUI_FILES}")
 add_library("imguizmo" "${IMGUIZMO_FILES}")

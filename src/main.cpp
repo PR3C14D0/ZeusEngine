@@ -58,7 +58,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		endTime = clock();
 		deltaTime = endTime - startTime;
 		startTime = endTime;
-		g_time->SetDelta(deltaTime);
+		g_time->SetDelta(deltaTime / 1000.f);
 	}
 	
 	return 0;

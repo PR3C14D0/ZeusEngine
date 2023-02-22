@@ -26,6 +26,7 @@ enum VSYNC {
 };
 
 class Core {
+	friend class Editor;
 	friend class GameObject;
 	friend class ScreenQuad;
 private:
@@ -86,6 +87,8 @@ private:
 	void WaitFrame();
 	void PopulateCommandList();
 
+	ImGuiIO* imIO;
+
 	UINT sampleCount; // Change sample count
 
 	VSYNC vSyncState;
@@ -106,6 +109,7 @@ public:
 
 	void GetDevice(ComPtr<ID3D12Device>& dev, ComPtr<ID3D12GraphicsCommandList>& list);
 
+	void SetVSYNC(VSYNC state);
 
 	void GetWindowSize(int& width, int& height);
 	

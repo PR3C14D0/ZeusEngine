@@ -13,7 +13,10 @@
 #include "Engine/Shader.h"
 #include <wincodec.h>
 #include <dxtk/WICTextureLoader.h>
+#include "Module/Time.h"
 #include <dxtk/ResourceUploadBatch.h>
+#include "Engine/ResourceManager.h"
+#include <map>
 
 using namespace Microsoft::WRL;
 
@@ -27,16 +30,17 @@ private:
 
 	Core* core;
 
-	std::vector<vertex> vertices;
+	std::map<int, std::vector<vertex>> vertices;
 	UINT vertexSize;
 
-	ComPtr<ID3D12Resource> vertexBuff;
-	D3D12_VERTEX_BUFFER_VIEW vbView;
+	std::map<int, ComPtr<ID3D12Resource>> vertexBuffers;
+	std::vector<D3D12_VERTEX_BUFFER_VIEW> vbViews;
 
-	ComPtr<ID3D12Resource> texture;
-	D3D12_GPU_DESCRIPTOR_HANDLE textureGPUHandle;
-	D3D12_CPU_DESCRIPTOR_HANDLE textureCPUHandle;
-	UINT textureIndex;
+
+	std::map<int, ComPtr<ID3D12Resource>> textures;
+	std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> textureGPUHandle;
+	std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> textureCPUHandle;
+	std::vector<UINT> textureIndex;
 
 	ComPtr<ID3D12PipelineState> plState;
 
@@ -58,8 +62,11 @@ private:
 	UINT cbv_srvIncrementSize;
 
 	ComPtr<ID3D12RootSignature> rootSig;
-
+	
 	bool bLoaded;
+
+
+	ResourceManager* resMgr;
 
 	void InitPipeline();
 	void UpdateConstantBuffers();
@@ -70,6 +77,8 @@ private:
 
 	WVP wvp;
 
+protected:
+	Time* time;
 public:
 	Transform transform;
 	explicit GameObject(std::string name);
