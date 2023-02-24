@@ -18,6 +18,8 @@ private:
 
 	Core* core;
 	std::map<std::string, ComPtr<ID3D12Resource>> resources;
+	UINT mappedIndex;
+	std::map<std::string, UINT> mappedIndices;
 public:
 	ResourceManager();
 	static ResourceManager* GetInstance();
