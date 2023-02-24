@@ -6,7 +6,7 @@ ResourceManager* ResourceManager::instance;
 ResourceManager::ResourceManager() {
 	this->core = Core::GetInstance();
 
-
+	this->mappedIndex = 0;
 }
 
 ResourceManager* ResourceManager::GetInstance() {
@@ -23,8 +23,11 @@ bool ResourceManager::Exists(std::string name) {
 }
 
 void ResourceManager::GetResource(ComPtr<ID3D12Resource>& resource, std::string name) {
-	if(this->Exists(name))
+	if (this->Exists(name)) {
 		resource = this->resources[name];
+		this->mappedIndices[name] = this->mappedIndex;
+		this->mappedIndex++;
+	}
 	return;
 }
 
@@ -38,12 +41,7 @@ bool ResourceManager::AddResource(ComPtr<ID3D12Resource>& resource, std::string 
 UINT ResourceManager::GetResourceIndex(std::string name) {
 	UINT index = 0;
 	if (this->Exists(name)) {
-		for (std::pair<std::string, ComPtr<ID3D12Resource>> resPair : this->resources) {
-			if (resPair.first == name) break;
-
-			index++;
-		}
+		index = this->mappedIndices[name];
 	}
 	return index;
-
 }

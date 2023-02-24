@@ -86,12 +86,15 @@ void GameObject::LoadModel(std::string fileName) {
 
 					UINT textureIndex = this->core->CBV_SRV_AddDescriptorToCount();
 					this->textureIndex.push_back(textureIndex);
+					UINT texVecIndex = this->textureIndex.size() - 1;
 
-					D3D12_CPU_DESCRIPTOR_HANDLE textureCPUHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(this->cbv_srvCPUHandle, this->textureIndex[index], this->cbv_srvIncrementSize);
-					D3D12_GPU_DESCRIPTOR_HANDLE textureGPUHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(this->cbv_srvGPUHandle, this->textureIndex[index], this->cbv_srvIncrementSize);
+					D3D12_CPU_DESCRIPTOR_HANDLE textureCPUHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(this->cbv_srvCPUHandle, this->textureIndex[texVecIndex], this->cbv_srvIncrementSize);
+					D3D12_GPU_DESCRIPTOR_HANDLE textureGPUHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(this->cbv_srvGPUHandle, this->textureIndex[texVecIndex], this->cbv_srvIncrementSize);
 					this->textureCPUHandle.push_back(textureCPUHandle);
 					this->textureGPUHandle.push_back(textureGPUHandle);
 					this->textures[index] = texture;	
+
+					this->resMgr->AddResource(texture, texPath.C_Str());
 
 					this->core->dev->CreateShaderResourceView(
 						this->textures[index].Get(),
@@ -103,7 +106,9 @@ void GameObject::LoadModel(std::string fileName) {
 					ComPtr<ID3D12Resource> res;
 					this->resMgr->GetResource(res, texPath.C_Str());
 					this->textures[index] = res;
-					this->textureCPUHandle[index] = this->textureCPUHandle[this->resMgr->GetResourceIndex(texPath.C_Str())];
+					UINT resIndex = this->resMgr->GetResourceIndex(texPath.C_Str());
+					this->textureCPUHandle.push_back(this->textureCPUHandle[resIndex]);
+					this->textureGPUHandle.push_back(this->textureGPUHandle[resIndex]);
 				}
 			}
 		}
